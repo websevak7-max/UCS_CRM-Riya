@@ -1,0 +1,245 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useUcs } from '../../store'
+import { themes, applyTheme } from '../hr/theme'
+import Dashboard from './pages/Dashboard'
+import NGOs from './pages/NGOs'
+import Users from './pages/Users'
+import Workers from './pages/Workers'
+import WorkerDetail from './pages/WorkerDetail'
+import Attendance from './pages/Attendance'
+import Leaves from './pages/Leaves'
+import Holidays from './pages/Holidays'
+import Salary from './pages/Salary'
+import Incentives from './pages/Incentives'
+import Events from './pages/Events'
+import Notices from './pages/Notices'
+import Achievements from './pages/Achievements'
+import Accounts from './pages/Accounts'
+import Reports from './pages/Reports'
+import Causes from './pages/Causes'
+import DataSources from './pages/DataSources'
+import DataImport from './pages/DataImport'
+
+const NAV = [
+  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'data-sources', label: 'Data Sources', icon: '📡' },
+  { id: 'data-import', label: 'Data Import', icon: '📥' },
+  { id: 'ngos', label: 'NGOs', icon: '🌐' },
+  { id: 'causes', label: 'Causes', icon: '🎯' },
+  { id: 'users', label: 'Users', icon: '👥' },
+  { id: 'workers', label: 'Workers', icon: '👷' },
+  { id: 'attendance', label: 'Attendance', icon: '📅' },
+  { id: 'leaves', label: 'Leaves', icon: '🏖️' },
+  { id: 'holidays', label: 'Holidays', icon: '📆' },
+  { id: 'salary', label: 'Salary', icon: '💰' },
+  { id: 'incentives', label: 'Incentives', icon: '🎯' },
+  { id: 'events', label: 'Events', icon: '🎉' },
+  { id: 'notices', label: 'Notices', icon: '📢' },
+  { id: 'achievements', label: 'Achievements', icon: '🏆' },
+  { id: 'accounts', label: 'Accounts', icon: '💼' },
+  { id: 'reports', label: 'Reports', icon: '📈' },
+]
+
+const navMap = {}
+NAV.forEach(n => { navMap[n.id] = n })
+
+const GROUPS = [
+  { id: 'data', label: 'Data Management', icon: '📋', items: ['data-sources', 'data-import'] },
+  { id: 'org', label: 'Organization', icon: '🏢', items: ['ngos', 'causes', 'users', 'workers'] },
+  { id: 'time', label: 'Time & Attendance', icon: '⏰', items: ['attendance', 'leaves', 'holidays'] },
+  { id: 'comm', label: 'Communication', icon: '📢', items: ['events', 'notices'] },
+]
+
+const standaloneIds = ['dashboard', 'salary', 'incentives', 'achievements', 'accounts', 'reports']
+
+
+
+function Sidebar({ active, setActive, collapsedGroups, toggleGroup }) {
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-brand">
+        <div className="brand-mark">SA</div>
+        <div><h1>UFS</h1><span>Super Admin</span></div>
+      </div>
+      <nav className="sidebar-nav">
+        {standaloneIds.map(id => {
+          const n = navMap[id]
+          return (
+            <button key={n.id} className={`snav-item${active === n.id ? ' active' : ''}`} onClick={() => setActive(n.id)}>
+              <span className="ico">{n.icon}</span>
+              <span>{n.label}</span>
+            </button>
+          )
+        })}
+        {GROUPS.map(g => (
+          <div key={g.id}>
+            <div className="snav-group-header" onClick={() => toggleGroup(g.id)}>
+              <span className="ico">{g.icon}</span>
+              <span>{g.label}</span>
+              <span className={`snav-chevron${collapsedGroups.includes(g.id) ? '' : ' open'}`}>▸</span>
+            </div>
+            <div className={`snav-group-items${collapsedGroups.includes(g.id) ? ' collapsed' : ''}`}>
+              {g.items.map(id => {
+                const n = navMap[id]
+                return (
+                  <button key={n.id} className={`snav-item snav-sub${active === n.id ? ' active' : ''}`} onClick={() => setActive(n.id)}>
+                    <span className="ico">{n.icon}</span>
+                    <span>{n.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  )
+}
+
+export default function SuperAdminPanel() {
+  const { user, logout } = useUcs()
+  const [active, setActive] = useState(() => {
+    try { return localStorage.getItem('sa_active') || 'dashboard' } catch { return 'dashboard' }
+  })
+  const [workerId, setWorkerId] = useState(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const [themeName, setThemeName] = useState(() => {
+    try { return localStorage.getItem('sa_theme') || 'sky' } catch { return 'sky' }
+  })
+  const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sa_collapsed_groups') || '[]') } catch { return [] }
+  })
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem('sa_dark') === 'true' } catch { return false }
+  })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (themes[themeName]) {
+      applyTheme(themes[themeName], '.panel-sa')
+      const t = themes[themeName]
+      const el = document.querySelector('.panel-sa') || document.documentElement
+      el.style.setProperty('--bg', t.sand)
+      el.style.setProperty('--bg-card', t.paper)
+      el.style.setProperty('--text', t.ink)
+      el.style.setProperty('--text-soft', t['ink-soft'])
+      el.style.setProperty('--border', t.line)
+      el.style.setProperty('--primary', t.sage)
+      el.style.setProperty('--primary-hover', t.sage)
+      el.style.setProperty('--danger', t.danger)
+      el.style.setProperty('--bg-sidebar', t.ink)
+    }
+    localStorage.setItem('sa_theme', themeName)
+  }, [themeName])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+    localStorage.setItem('sa_dark', dark)
+  }, [dark])
+
+  useEffect(() => {
+    localStorage.setItem('sa_active', active)
+  }, [active])
+
+  const toggleGroup = (id) => {
+    setCollapsedGroups(prev => {
+      const next = prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+      localStorage.setItem('sa_collapsed_groups', JSON.stringify(next))
+      return next
+    })
+  }
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false)
+    }
+    if (showMenu) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu])
+
+  const handleViewWorker = useCallback((id) => {
+    setWorkerId(id)
+    setActive('worker-detail')
+  }, [])
+
+  const handleBack = useCallback(() => {
+    setWorkerId(null)
+    setActive('workers')
+  }, [])
+
+  const userName = user?.name || 'Super Admin'
+  const initials = userName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+
+  const meta = NAV.find(n => n.id === active)
+
+  const renderPage = () => {
+    switch (active) {
+      case 'dashboard': return <Dashboard />
+      case 'ngos': return <NGOs />
+      case 'users': return <Users />
+      case 'workers': return <Workers onViewWorker={handleViewWorker} />
+      case 'worker-detail': return <WorkerDetail workerId={workerId} onBack={handleBack} />
+      case 'attendance': return <Attendance />
+      case 'leaves': return <Leaves />
+      case 'holidays': return <Holidays />
+      case 'salary': return <Salary />
+      case 'incentives': return <Incentives />
+      case 'events': return <Events />
+      case 'notices': return <Notices />
+      case 'achievements': return <Achievements />
+      case 'accounts': return <Accounts />
+      case 'reports': return <Reports />
+      case 'causes': return <Causes />
+      case 'data-sources': return <DataSources />
+      case 'data-import': return <DataImport />
+      default: return <Dashboard />
+    }
+  }
+
+  return (
+    <div className="app">
+      <Sidebar active={active} setActive={setActive} collapsedGroups={collapsedGroups} toggleGroup={toggleGroup} />
+      <div className="main">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">{meta?.label || 'Dashboard'}</div>
+            <h2>{meta?.label || 'Dashboard'}</h2>
+          </div>
+          <div className="topbar-user" ref={menuRef} onClick={() => setShowMenu(!showMenu)}>
+            <div className="topbar-user-text">
+              <div className="topbar-name">{userName}</div>
+              <div className="topbar-role">Super Admin</div>
+            </div>
+            <div className="avatar">{initials}</div>
+            {showMenu && (
+              <div className="user-menu">
+                <div className="user-menu-item" style={{fontWeight:600, fontSize:13, cursor:'default'}}>{userName} <span style={{fontWeight:400, color:'var(--ink-soft)'}}>Super Admin</span></div>
+                <div className="user-menu-divider" />
+                <div className="user-menu-item" style={{cursor:'default'}}>
+                  <span style={{fontSize:13, color:'var(--ink-soft)'}}>{dark ? '☀️ Light' : '🌙 Dark'}</span>
+                  <label className="dm-toggle" style={{marginLeft:'auto'}}>
+                    <input type="checkbox" checked={dark} onChange={() => setDark(!dark)} />
+                    <span className="dm-slider"></span>
+                  </label>
+                </div>
+                <div className="user-menu-item" style={{cursor:'default', fontSize:13, color:'#666'}}>
+                  Theme: <select value={themeName} onClick={e=>e.stopPropagation()} onChange={e=>setThemeName(e.target.value)} style={{marginLeft:8, border:'1px solid var(--line)', borderRadius:6, padding:'2px 8px'}}>
+                    {Object.keys(themes).map(k => <option key={k} value={k}>{themes[k].name}</option>)}
+                  </select>
+                </div>
+                <div className="user-menu-divider" />
+                <button className="user-menu-item" onClick={() => { setShowMenu(false); logout() }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+        <div className="content-body" style={{maxWidth:'none'}}>
+          {renderPage()}
+        </div>
+      </div>
+    </div>
+  )
+}

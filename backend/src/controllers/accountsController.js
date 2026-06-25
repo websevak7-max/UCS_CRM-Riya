@@ -1,0 +1,376 @@
+import supabase from '../config/supabase.js';
+import { createReceipt, findReceiptByLogId, getLastReceiptNo, listAllReceipts } from '../models/receiptModel.js';
+
+export const getLeadList = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let query = supabase
+      .from('fro_donor_logs')
+      .select(`
+        id, action, disposition_category, disposition_detail, amount_collected,
+        payment_screenshot_url, accounts_status, pan_number, notes, created_at,
+        assignment_id,
+        fro_assignments!inner(
+          id,
+          donor_id,
+          fro_worker_id,
+          status,
+          donor_profiles!inner(id, name, mobile_number, city, pan_number, address_1, email, project_supported, donation_count, total_amount, birth_date),
+          workers!inner(id, name, login_id)
+        )
+      `)
+      .eq('action', 'disposition')
+      .eq('disposition_detail', 'lead_done')
+      .order('created_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('accounts_status', status);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const result = (data || []).map(r => ({
+      log_id: r.id,
+      amount: r.amount_collected,
+      screenshot_url: r.payment_screenshot_url,
+      accounts_status: r.accounts_status,
+      pan_number: r.pan_number,
+      notes: r.notes,
+      rejection_reason: r.rejection_reason,
+      created_at: r.created_at,
+      assignment_id: r.assignment_id,
+      assignment_status: r.fro_assignments?.status || 'lead_done',
+      donor_id: r.fro_assignments?.donor_id,
+      donor_name: r.fro_assignments?.donor_profiles?.name || 'Unknown',
+      donor_mobile: r.fro_assignments?.donor_profiles?.mobile_number || '',
+      donor_city: r.fro_assignments?.donor_profiles?.city || '',
+      donor_pan: r.fro_assignments?.donor_profiles?.pan_number || '',
+      donor_address: r.fro_assignments?.donor_profiles?.address_1 || '',
+      donor_email: r.fro_assignments?.donor_profiles?.email || '',
+      donor_project: r.fro_assignments?.donor_profiles?.project_supported || '',
+      donor_dob: r.fro_assignments?.donor_profiles?.birth_date || '',
+      donation_count: r.fro_assignments?.donor_profiles?.donation_count || 0,
+      total_donated: r.fro_assignments?.donor_profiles?.total_amount || 0,
+      agent_id: r.fro_assignments?.fro_worker_id,
+      agent_name: r.fro_assignments?.workers?.name || 'Unknown',
+      agent_login: r.fro_assignments?.workers?.login_id || '',
+    }));
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const verifyLead = async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const { pan_number, notes } = req.body;
+
+    const { data: log, error: logError } = await supabase
+      .from('fro_donor_logs')
+      .select('*, fro_assignments!inner(id, fro_worker_id, donor_id, status, donor_profiles!inner(id, name, mobile_number))')
+      .eq('id', logId)
+      .single();
+
+    if (logError || !log) {
+      return res.status(404).json({ message: 'Log entry not found' });
+    }
+
+    if (log.accounts_status !== 'pending') {
+      return res.status(400).json({ message: `This lead has already been ${log.accounts_status || 'processed'}` });
+    }
+
+    const assignmentId = log.fro_assignments?.id;
+    if (!assignmentId) {
+      return res.status(400).json({ message: 'Associated assignment not found' });
+    }
+
+    const { error: updateLogError } = await supabase
+      .from('fro_donor_logs')
+      .update({
+        accounts_status: 'verified',
+        verified_at: new Date().toISOString(),
+        verified_by: req.user.id,
+        pan_number: pan_number || log.pan_number || null,
+        notes: notes || log.notes || null,
+      })
+      .eq('id', logId);
+
+    if (updateLogError) throw updateLogError;
+
+    const { error: updateAsgnError } = await supabase
+      .from('fro_assignments')
+      .update({
+        status: 'donation_collected',
+        last_contacted_at: new Date().toISOString(),
+      })
+      .eq('id', assignmentId);
+
+    if (updateAsgnError) throw updateAsgnError;
+
+    if (log.fro_assignments?.donor_id) {
+      const donorUpdate = { updated_at: new Date().toISOString() };
+      if (pan_number) donorUpdate.pan_number = pan_number;
+      try {
+        const { data: donor } = await supabase
+          .from('donor_profiles')
+          .select('total_amount, donation_count')
+          .eq('id', log.fro_assignments.donor_id)
+          .single();
+        donorUpdate.total_amount = (donor?.total_amount || 0) + (log.amount_collected || 0);
+        donorUpdate.donation_count = (donor?.donation_count || 0) + 1;
+        await supabase.from('donor_profiles').update(donorUpdate).eq('id', log.fro_assignments.donor_id);
+      } catch (_) {}
+    }
+
+    return res.json({ message: 'Lead verified, amount added to target' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ─── Suspense ─────────────────────────────────────────────
+
+export const getSuspenseList = async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = supabase
+      .from('suspense_donations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const createSuspense = async (req, res) => {
+  try {
+    const { donor_name, amount, transaction_date, notes } = req.body;
+    if (!donor_name || !amount) {
+      return res.status(400).json({ message: 'Donor name and amount are required' });
+    }
+
+    const { data, error } = await supabase
+      .from('suspense_donations')
+      .insert({ donor_name, amount, transaction_date, notes })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const addSuspenseNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+    if (!notes) return res.status(400).json({ message: 'Notes are required' });
+
+    const { data: existing } = await supabase
+      .from('suspense_donations')
+      .select('notes')
+      .eq('id', id)
+      .single();
+
+    if (!existing) return res.status(404).json({ message: 'Suspense entry not found' });
+
+    const updatedNotes = existing.notes
+      ? existing.notes + '\n---\n' + new Date().toLocaleString() + ': ' + notes
+      : new Date().toLocaleString() + ': ' + notes;
+
+    const { data, error } = await supabase
+      .from('suspense_donations')
+      .update({ notes: updatedNotes })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const assignSuspense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fro_worker_id } = req.body;
+    if (!fro_worker_id) return res.status(400).json({ message: 'FRO worker ID is required' });
+
+    const { data, error } = await supabase
+      .from('suspense_donations')
+      .update({ assigned_to_fro_id: fro_worker_id, assigned_at: new Date().toISOString(), status: 'resolved' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const rejectLead = async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ message: 'Rejection reason is required' });
+    }
+
+    const { data: log, error: logError } = await supabase
+      .from('fro_donor_logs')
+      .select('*, fro_assignments!inner(id, fro_worker_id, donor_id, status, donor_profiles!inner(id, name, mobile_number))')
+      .eq('id', logId)
+      .single();
+
+    if (logError || !log) {
+      return res.status(404).json({ message: 'Log entry not found' });
+    }
+
+    if (log.accounts_status !== 'pending') {
+      return res.status(400).json({ message: `This lead has already been ${log.accounts_status || 'processed'}` });
+    }
+
+    const assignmentId = log.fro_assignments?.id;
+    if (!assignmentId) {
+      return res.status(400).json({ message: 'Associated assignment not found' });
+    }
+
+    const { error: updateLogError } = await supabase
+      .from('fro_donor_logs')
+      .update({
+        accounts_status: 'rejected',
+        rejection_reason: reason,
+        verified_by: req.user.id,
+        verified_at: new Date().toISOString(),
+        notes: reason,
+      })
+      .eq('id', logId);
+
+    if (updateLogError) throw updateLogError;
+
+    const { error: updateAsgnError } = await supabase
+      .from('fro_assignments')
+      .update({
+        status: 'payment_rejected',
+        last_contacted_at: new Date().toISOString(),
+        notes: reason,
+      })
+      .eq('id', assignmentId);
+
+    if (updateAsgnError) throw updateAsgnError;
+
+    if (log.fro_assignments?.donor_id) {
+      await supabase.from('donor_profiles').update({ updated_at: new Date().toISOString() }).eq('id', log.fro_assignments.donor_id);
+    }
+
+    return res.json({ message: 'Lead rejected' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ─── Receipts ──────────────────────────────────────────────
+
+function generateReceiptNo(projectId, lastNo) {
+  const prefix = projectId.toUpperCase().slice(0, 4);
+  let num = 1;
+  if (lastNo) {
+    const match = lastNo.match(/(\d+)$/);
+    if (match) num = parseInt(match[1], 10) + 1;
+  }
+  return `${prefix}/${String(num).padStart(5, '0')}/${new Date().getFullYear()}`;
+}
+
+export const generateReceipt = async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const { pan_number, address, mode, purpose } = req.body;
+
+    const existing = await findReceiptByLogId(logId);
+    if (existing) {
+      return res.json({ receipt: existing, message: 'Receipt already exists' });
+    }
+
+    const { data: log, error: logError } = await supabase
+      .from('fro_donor_logs')
+      .select(`
+        id, amount_collected, pan_number, notes,
+        fro_assignments!inner(
+          donor_id,
+          fro_worker_id,
+          donor_profiles!inner(id, name, mobile_number, city, address_1, email, pan_number, project_supported),
+          workers!inner(id, name, login_id)
+        )
+      `)
+      .eq('id', logId)
+      .single();
+
+    if (logError || !log) {
+      return res.status(404).json({ message: 'Log entry not found' });
+    }
+
+    const donorProfile = log.fro_assignments?.donor_profiles;
+    const project = donorProfile?.project_supported || 'bsct';
+    const donorName = donorProfile?.name || 'Unknown';
+
+    const lastNo = await getLastReceiptNo(project);
+    const receiptNo = generateReceiptNo(project, lastNo);
+
+    const receipt = await createReceipt({
+      log_id: logId,
+      receipt_no: receiptNo,
+      project_id: project,
+      donor_name: donorName,
+      amount: log.amount_collected || 0,
+      pan_number: pan_number || log.pan_number || donorProfile?.pan_number || null,
+      address: address || donorProfile?.address_1 || null,
+      mode: mode || null,
+      purpose: purpose || 'General Donation',
+      generated_by: req.user.id,
+    });
+
+    return res.status(201).json({ receipt, message: 'Receipt generated' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const getReceipt = async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const receipt = await findReceiptByLogId(logId);
+    if (!receipt) {
+      return res.status(404).json({ message: 'Receipt not found' });
+    }
+    return res.json(receipt);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const getReceiptList = async (req, res) => {
+  try {
+    const receipts = await listAllReceipts(200);
+    return res.json(receipts);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

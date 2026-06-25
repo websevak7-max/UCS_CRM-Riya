@@ -1,0 +1,117 @@
+import { useState } from 'react';
+import { useRec, LEAD_STATUSES } from '../store';
+import { Dropdown } from './ui';
+import { ArrowLeft } from '../icons';
+
+const calcAge = (dob) => {
+  if (!dob) return null;
+  const diff = Date.now() - new Date(dob).getTime();
+  return Math.floor(diff / 31557600000);
+};
+
+const statusPill = (s) => {
+  const m = { rejected:'pill-danger', selected:'pill-green', hold:'pill-gold', scheduled:'pill-clay', joined:'pill-gray' };
+  return <span className={`pill ${m[s] || 'pill-gray'}`}>{s}</span>;
+};
+
+export default function LeadDetail({ lead, onBack }) {
+  const { user, updateLead } = useRec();
+  const myId = user?.id;
+  const isOwner = myId && lead.created_by === myId;
+  const [noteText, setNoteText] = useState('');
+  const [editScheduledDate, setEditScheduledDate] = useState(lead.scheduled_date || '');
+
+  let notes = [];
+  try { notes = JSON.parse(lead.notes || '[]'); } catch { notes = lead.notes ? [{ text: lead.notes }] : []; }
+
+  const addNote = async () => {
+    if (!noteText.trim()) return;
+    const n = { text: noteText.trim(), date: new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}), by: user?.name || 'Unknown' };
+    await updateLead(lead.id, { notes: JSON.stringify([...notes, n]) });
+    setNoteText('');
+  };
+
+  const updateStatus = async (newStatus) => {
+    const payload = { status: newStatus };
+    if (newStatus === 'scheduled') payload.scheduled_date = editScheduledDate || null;
+    await updateLead(lead.id, payload);
+  };
+
+  const updateScheduledDate = async () => {
+    await updateLead(lead.id, { scheduled_date: editScheduledDate || null });
+  };
+
+  const age = lead.dob ? calcAge(lead.dob) : lead.age;
+  const formatDT = (ts) => {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  };
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <button className="btn btn-sm" onClick={onBack}><ArrowLeft width={14}/> Back</button>
+        <span className="sub">Lead details</span>
+      </div>
+      <div className="card-pad">
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+          <div><strong>Name</strong><p>{lead.name}</p></div>
+          <div><strong>Phone</strong><p>{lead.phone || '—'}</p></div>
+          <div><strong>DOB</strong><p>{lead.dob ? new Date(lead.dob).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'}{age ? ` (Age: ${age})` : ''}</p></div>
+          <div><strong>Source</strong><p>{lead.source}</p></div>
+          <div><strong>Status</strong>
+            <p style={{marginTop:4}}>
+              {isOwner ? (
+                <Dropdown className="inline-select" value={lead.status} onChange={e=>updateStatus(e.target.value)} options={LEAD_STATUSES} style={{minWidth:100}} />
+              ) : statusPill(lead.status)}
+            </p>
+          </div>
+          <div><strong>Created by</strong><p>{lead.created_by_name || '—'}</p></div>
+
+          {lead.status === 'scheduled' && (
+            <>
+              <div><strong>Interview date</strong>
+                <p style={{marginTop:4}}>
+                  {isOwner ? (
+                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                      <input type="date" value={editScheduledDate} onChange={e=>setEditScheduledDate(e.target.value)}
+                        style={{flex:1,border:'1px solid var(--line)',borderRadius:'var(--radius-sm)',padding:'4px 8px',fontSize:13,background:'transparent',color:'var(--ink)',outline:'none'}} />
+                      <button className="btn btn-sm" onClick={updateScheduledDate}>Save</button>
+                    </div>
+                  ) : (
+                    lead.scheduled_date ? new Date(lead.scheduled_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'
+                  )}
+                </p>
+              </div>
+              <div><strong>Scheduled by</strong><p>{lead.scheduled_by_name || '—'}</p></div>
+              <div><strong>Scheduled at</strong><p style={{color:'var(--ink-soft)'}}>{formatDT(lead.scheduled_at)}</p></div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="card-head" style={{borderTop:'1px solid var(--line)'}}><h3>Notes</h3></div>
+      <div className="card-pad">
+        {notes.length === 0 ? (
+          <div className="empty">No notes.</div>
+        ) : (
+          notes.map((n,i) => (
+            <div key={i} style={{padding:'10px 0',borderBottom:i<notes.length-1?'1px solid var(--line)':'none',fontSize:13}}>
+              <div>{n.text || n}</div>
+              <div style={{fontSize:11,color:'var(--ink-soft)',marginTop:3}}>{(n.by || '—')} · {(n.date || '—')}</div>
+            </div>
+          ))
+        )}
+        {isOwner && (
+          <div style={{display:'flex',gap:8,marginTop:14}}>
+            <input value={noteText} onChange={e=>setNoteText(e.target.value)}
+              placeholder="Add a note…" style={{flex:1}}
+              onKeyDown={e=>e.key==='Enter'&&addNote()} />
+            <button className="btn btn-sm" onClick={addNote}>Add</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
