@@ -48,6 +48,8 @@ export default function Dashboard() {
   const remaining = ts.remaining || Math.max(0, target - collected);
   const progress = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
 
+  const inc = ts.incentive || {};
+
   const sourceLabel = {
     auto: 'Auto-calculated (based on salary & joining date)',
     manual: 'Set by NGO Admin',
@@ -102,6 +104,45 @@ export default function Dashboard() {
           <div className="m3-stat">
             <div className="m3-stat-num">₹{Number(remaining).toLocaleString('en-IN')}</div>
             <div className="m3-stat-lbl">Remaining</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bento-col-3">
+        <div className="bento-card">
+          <div className="m3-stat">
+            <div className="m3-stat-num" style={{ color:'var(--amber)' }}>₹{Number(inc.totalAKI || 0).toLocaleString('en-IN')}</div>
+            <div className="m3-stat-lbl">Total AKI</div>
+          </div>
+        </div>
+      </div>
+      <div className="bento-col-3">
+        <div className="bento-card">
+          <div className="m3-stat">
+            <div className="m3-stat-num" style={{ color: inc.targetMet ? 'var(--sage)' : 'var(--ink-soft)' }}>
+              ₹{Number(inc.akiPayout || 0).toLocaleString('en-IN')}
+            </div>
+            <div className="m3-stat-lbl">AKI Payout {!inc.targetMet && <span style={{fontSize:9, color:'var(--ink-soft)'}}>(target not met)</span>}</div>
+          </div>
+        </div>
+      </div>
+      <div className="bento-col-3">
+        <div className="bento-card">
+          <div className="m3-stat">
+            <div className="m3-stat-num" style={{ color: inc.targetMet ? 'var(--sage)' : 'var(--ink-soft)' }}>
+              ₹{Number(inc.monthlyIncentive || 0).toLocaleString('en-IN')}
+            </div>
+            <div className="m3-stat-lbl">Monthly 10%</div>
+          </div>
+        </div>
+      </div>
+      <div className="bento-col-3">
+        <div className="bento-card" style={{ background: inc.targetMet ? 'var(--sage)' : 'var(--bg)', color: inc.targetMet ? '#fff' : 'var(--ink)' }}>
+          <div className="m3-stat">
+            <div className="m3-stat-num">₹{Number(inc.totalIncentive || 0).toLocaleString('en-IN')}</div>
+            <div className="m3-stat-lbl" style={{ color: inc.targetMet ? 'rgba(255,255,255,.7)' : undefined }}>
+              {inc.isNewJoiner ? 'Incentive (New Joiner)' : 'Total Incentive'}
+            </div>
           </div>
         </div>
       </div>

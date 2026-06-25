@@ -19,6 +19,8 @@ import {
   getTotalCollectedByAssignment,
   getTotalCollectedByDonorAndWorker,
 } from '../models/froDonorLogModel.js';
+import { getAchievements } from '../models/dailyAchievementModel.js';
+import { getDayName, calculateAKI, getMonthsEmployed } from '../utils/incentive.js';
 
 async function findOrCreateAssignment(donorId, workerId, ngoId) {
   let query = supabase
@@ -550,6 +552,31 @@ export const getMyTarget = async (req, res) => {
 
     const stats = await getDashboardStats(workerId);
 
+    // Incentive calculation
+    let incentive = {
+      totalAKI: 0,
+      akiPayout: 0,
+      monthlyIncentive: 0,
+      totalIncentive: 0,
+      targetMet: false,
+      isNewJoiner: monthsEmployed <= 3,
+    };
+    try {
+      const achievements = await getAchievements(workerId, monthStart, monthEnd);
+      const monthlyAchievement = achievements.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+      const totalAKI = achievements.reduce((sum, r) => {
+        return sum + calculateAKI(parseFloat(r.amount || 0), getDayName(r.date));
+      }, 0);
+      const monthlyTargetMet = monthlyAchievement >= target;
+      if (monthlyTargetMet) {
+        const akiPayout = incentive.isNewJoiner ? totalAKI : Math.round(totalAKI / 2);
+        const monthlyIncentive = Math.round((monthlyAchievement - target) * 0.1);
+        incentive = { totalAKI, akiPayout, monthlyIncentive, totalIncentive: akiPayout + monthlyIncentive, targetMet: true, isNewJoiner: incentive.isNewJoiner };
+      } else {
+        incentive.totalAKI = totalAKI;
+      }
+    } catch (_) { /* keep defaults */ }
+
     return res.json({
       month: monthStr,
       target,
@@ -559,6 +586,7 @@ export const getMyTarget = async (req, res) => {
       salary: currentSalary,
       months_employed: monthsEmployed,
       stats,
+      incentive,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
