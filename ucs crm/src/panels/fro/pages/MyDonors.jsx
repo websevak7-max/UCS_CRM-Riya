@@ -200,9 +200,11 @@ export default function MyDonors() {
         <div className="detail-left" style={{ padding: 12 }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {/* Profile header */}
-            <div style={{ paddingBottom: 10, borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
-              <div className="detail-phone" style={{ fontSize:13, marginBottom:2 }}>{donor.donor_mobile || '—'}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+            <div style={{ textAlign:'center', paddingBottom:10, borderBottom:'1px solid var(--line)', flexShrink:0 }}>
+              <div className="detail-avatar">{initials(donor.donor_name)}</div>
+              <div className="detail-name">{donor.donor_name}</div>
+              <div className="detail-phone">{donor.donor_mobile || '—'}</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, flexWrap:'wrap', marginTop:4 }}>
                 {donor.is_new && (
                   <span style={{ padding: '1px 6px', borderRadius: 4, background: '#16a34a', color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: .5 }}>NEW</span>
                 )}
