@@ -51,8 +51,6 @@ export default function Donors() {
             <thead>
               <tr style={{ borderBottom:'1px solid var(--line)' }}>
                 <th style={{ textAlign:'left', padding:'8px 10px', fontSize:10, fontWeight:600, textTransform:'uppercase', color:'var(--ink-soft)' }}>Name</th>
-                <th style={{ textAlign:'left', padding:'8px 10px', fontSize:10, fontWeight:600, textTransform:'uppercase', color:'var(--ink-soft)' }}>Mobile</th>
-                <th style={{ textAlign:'left', padding:'8px 10px', fontSize:10, fontWeight:600, textTransform:'uppercase', color:'var(--ink-soft)' }}>Amount</th>
                 <th style={{ textAlign:'left', padding:'8px 10px', fontSize:10, fontWeight:600, textTransform:'uppercase', color:'var(--ink-soft)' }}>Status</th>
               </tr>
             </thead>
@@ -63,8 +61,6 @@ export default function Donors() {
                   onMouseOver={e => e.currentTarget.style.background = showDetail === d.id ? '#e6f7e6' : 'var(--bg)'}
                   onMouseOut={e => e.currentTarget.style.background = showDetail === d.id ? '#f0fdf4' : 'transparent'}>
                   <td style={{ padding:'8px 10px', fontWeight:600 }}>{d.donor_name || '—'}</td>
-                  <td style={{ padding:'8px 10px' }}>{d.donor_mobile || '—'}</td>
-                  <td style={{ padding:'8px 10px', fontWeight:600 }}>₹{Number(d.donor_amount || 0).toLocaleString('en-IN')}</td>
                   <td style={{ padding:'8px 10px' }}>
                     <span className={`pill ${STATUS_PILL[d.status] || 'pill-gray'}`}>{d.status?.replace(/_/g, ' ') || 'unknown'}</span>
                   </td>
