@@ -172,17 +172,28 @@ export const getDashboard = async (req, res) => {
 export const getMyDonors = async (req, res) => {
   try {
     const workerId = req.user.id;
+    const statusFilter = req.query.status;
 
     // Query fro_assignments by this FRO's station names (not fro_worker_id,
     // since stations may not have an FRO assigned)
     const stationNames = await getMyStationNames(workerId);
     if (stationNames.length === 0) return res.json([]);
 
-    const { data: assignments } = await supabase
+    let query = supabase
       .from('fro_assignments')
       .select('*, ngos(name)')
       .in('station', stationNames)
       .not('status', 'eq', 'reassigned');
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    } else {
+      // Default (My Leads): exclude terminal statuses so they only reappear
+      // after the 30-day cron resets them to pending
+      query = query.not('status', 'eq', 'lead_done').not('status', 'eq', 'donation_collected');
+    }
+
+    const { data: assignments } = await query;
 
     if (!assignments || assignments.length === 0) return res.json([]);
 

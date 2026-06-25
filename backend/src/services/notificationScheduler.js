@@ -348,3 +348,35 @@ console.log('Scheduled: every-minute check for punch-in reminders');
 
 cron.schedule('* * * * *', () => sendPunchOutReminders());
 console.log('Scheduled: every-minute check for punch-out reminders');
+
+async function resetCycledDonors() {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff = thirtyDaysAgo.toISOString();
+
+    const { data: expired, error } = await supabase
+      .from('fro_assignments')
+      .select('id, donor_id, fro_worker_id, ngo_id')
+      .in('status', ['donation_collected', 'lead_done'])
+      .lt('last_contacted_at', cutoff);
+
+    if (error) throw error;
+    if (!expired || expired.length === 0) return;
+
+    const ids = expired.map(a => a.id);
+    const { error: updErr } = await supabase
+      .from('fro_assignments')
+      .update({ status: 'pending', updated_at: new Date().toISOString() })
+      .in('id', ids);
+
+    if (updErr) throw updErr;
+
+    console.log(`[resetCycledDonors] Reset ${ids.length} donation_collected donors to pending for follow-up`);
+  } catch (error) {
+    console.error('[resetCycledDonors] Error:', error.message);
+  }
+}
+
+cron.schedule('0 0 * * *', () => resetCycledDonors());
+console.log('Scheduled: midnight check for 30-day donor follow-up cycle');
