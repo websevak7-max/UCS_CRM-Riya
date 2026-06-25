@@ -1000,7 +1000,7 @@ input,select,textarea { font-family:inherit; font-size:14px; }
 
 /* ── FRO Panel - Donor Detail Card Layout ── */
 .panel-fro .content-body { padding:0; display:flex; flex-direction:column; }
-.panel-fro .detail-split { display:flex; gap:16px; flex:1; min-height:0; padding:16px; }
+.panel-fro .detail-split { display:flex; gap:16px; flex:1; min-height:0; }
 .panel-fro .detail-left { width:42%; display:flex; flex-direction:column; gap:12px; min-height:0; }
 .panel-fro .detail-right { width:58%; display:flex; flex-direction:column; gap:12px; min-height:0; }
 .panel-fro .detail-card { background:#fff; border-radius:12px; border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden; }
