@@ -111,8 +111,8 @@ function StationDetailModal({ station, stats, stationInfo, onClose }) {
               {total} donors
             </span>
             {stationInfo?.ngos?.map(n => (
-              <span key={n} style={{ fontSize: 11, background: '#eef2ff', color: '#6366f1', padding: '2px 8px', borderRadius: 12 }}>
-                {n}
+              <span key={n.ngo_id || n.ngo_name} style={{ fontSize: 11, background: '#eef2ff', color: '#6366f1', padding: '2px 8px', borderRadius: 12 }}>
+                {n.ngo_name}
               </span>
             ))}
           </div>
