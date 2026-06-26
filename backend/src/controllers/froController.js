@@ -818,15 +818,19 @@ export const requestData = async (req, res) => {
       .single();
     if (error) throw error;
 
-    if (ngoId) {
-      await supabase.from('alerts').insert([{
-        ngo_id: ngoId,
-        type: 'data_request',
-        title: 'Data Request',
-        description: `${froName} requested more data: ${message.trim()}`,
-        fro_name: froName,
-        reference_id: data.id,
-      }]);
+    try {
+      if (ngoId) {
+        await supabase.from('alerts').insert([{
+          ngo_id: ngoId,
+          type: 'data_request',
+          title: 'Data Request',
+          description: `${froName} requested more data: ${message.trim()}`,
+          fro_name: froName,
+          reference_id: data.id,
+        }]);
+      }
+    } catch (alertErr) {
+      console.error('[requestData] Failed to create alert:', alertErr.message);
     }
 
     return res.json({ message: 'Request sent successfully', data });
