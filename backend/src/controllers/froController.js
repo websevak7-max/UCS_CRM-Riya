@@ -801,3 +801,22 @@ export const getMyHistory = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+export const requestData = async (req, res) => {
+  try {
+    const workerId = req.user.id;
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+    const { data, error } = await supabase
+      .from('fro_data_requests')
+      .insert([{ fro_worker_id: workerId, message: message.trim(), status: 'pending' }])
+      .select()
+      .single();
+    if (error) throw error;
+    return res.json({ message: 'Request sent successfully', data });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

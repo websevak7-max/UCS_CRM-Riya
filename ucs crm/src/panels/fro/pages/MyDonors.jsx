@@ -57,24 +57,31 @@ export default function MyDonors() {
   const [donationLoading, setDonationLoading] = useState(false);
 
   useEffect(() => {
+    localStorage.removeItem('mydonors_index');
     setLoading(true);
     getMyDonors(filterStatus).then(r => {
       setDonors(r);
       setMessage(null);
-      const saved = sessionStorage.getItem('mydonors_index');
-      if (saved && Number(saved) < r.length) {
-        setIndex(Number(saved));
-      } else {
-        setIndex(0);
+      const saved = localStorage.getItem('mydonors_current_donor');
+      if (saved) {
+        try {
+          const { id, ngo_id } = JSON.parse(saved);
+          const found = r.findIndex(d => d.id === id && d.ngo_id === (ngo_id ?? null));
+          setIndex(found >= 0 ? found : 0);
+          return;
+        } catch {}
       }
+      setIndex(0);
     }).catch(err => setMessage({ type: 'error', text: err.message })).finally(() => setLoading(false));
   }, [filterStatus]);
 
-  useEffect(() => {
-    sessionStorage.setItem('mydonors_index', String(index));
-  }, [index]);
-
   const donor = donors[index];
+
+  useEffect(() => {
+    if (donor) {
+      localStorage.setItem('mydonors_current_donor', JSON.stringify({ id: donor.id, ngo_id: donor.ngo_id }));
+    }
+  }, [donor?.id, donor?.ngo_id]);
   const logs = detail?.logs || [];
   const totalCollected = detail?.total_collected || 0;
   const nextSchedule = detail?.next_schedule;

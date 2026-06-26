@@ -14,6 +14,7 @@ import {
   getFroScheduled,
   getFroCallbacks,
   getMyHistory,
+  requestData,
 } from '../controllers/froController.js';
 
 const router = Router();
@@ -60,5 +61,6 @@ router.get('/callbacks', getFroCallbacks);
 router.get('/history', getMyHistory);
 router.get('/target', getMyTarget);
 router.get('/debug/my-stations', debugMyStations);
+router.post('/request-data', requestData);
 
 export default router;
