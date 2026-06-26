@@ -655,23 +655,30 @@ export const removeStationByName = async (req, res) => {
 
 export const createStationHandler = async (req, res) => {
   try {
-    const { station } = req.body;
+    const { station, ngo_id } = req.body;
     if (!station) {
       return res.status(400).json({ message: 'station name is required' });
     }
 
-    // Create station without NGO — assign NGOs later via the table
-    const { data: existing } = await supabase
-      .from('fro_station_assignments')
-      .select('id')
-      .eq('station', station.trim())
-      .is('ngo_id', null)
-      .maybeSingle();
-    if (existing) return res.json(existing);
+    const stationName = station.trim();
+
+    // If ngo_id provided, check unique(ngo_id, station) constraint
+    if (ngo_id) {
+      const { data: existing } = await supabase
+        .from('fro_station_assignments')
+        .select('id')
+        .eq('station', stationName)
+        .eq('ngo_id', ngo_id)
+        .maybeSingle();
+      if (existing) return res.json(existing);
+    }
+
+    const insertData = { station: stationName, assigned_by: req.user.id };
+    if (ngo_id) insertData.ngo_id = ngo_id;
 
     const { data, error } = await supabase
       .from('fro_station_assignments')
-      .insert([{ station: station.trim(), assigned_by: req.user.id }])
+      .insert([insertData])
       .select()
       .single();
     if (error) throw error;

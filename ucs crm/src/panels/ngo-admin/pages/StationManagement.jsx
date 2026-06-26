@@ -45,8 +45,17 @@ export default function StationManagement() {
   const [froWorkers, setFroWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newStation, setNewStation] = useState('');
+  const [newStationNgo, setNewStationNgo] = useState('');
   const [adding, setAdding] = useState(false);
   const [editNgoStation, setEditNgoStation] = useState(null);
+
+  const computeNextName = (existingStations) => {
+    const nums = existingStations
+      .map(s => parseInt(s.station?.replace(/^Station\s*/i, ''), 10))
+      .filter(n => !isNaN(n));
+    const max = nums.length > 0 ? Math.max(...nums) : 0;
+    return `Station ${max + 1}`;
+  };
 
   const fetchData = () => {
     Promise.all([
@@ -54,9 +63,11 @@ export default function StationManagement() {
       apiGet('/ngo-admin/ngos'),
       apiGet('/ngo-admin/fro-workers'),
     ]).then(([s, n, f]) => {
-      setStations(Array.isArray(s) ? s : []);
+      const list = Array.isArray(s) ? s : [];
+      setStations(list);
       setAllNgos(Array.isArray(n) ? n : []);
       setFroWorkers(Array.isArray(f) ? f : []);
+      if (!newStation) setNewStation(computeNextName(list));
     }).catch(() => {});
   };
 
@@ -67,9 +78,11 @@ export default function StationManagement() {
       apiGet('/ngo-admin/ngos'),
       apiGet('/ngo-admin/fro-workers'),
     ]).then(([s, n, f]) => {
-      setStations(Array.isArray(s) ? s : []);
+      const list = Array.isArray(s) ? s : [];
+      setStations(list);
       setAllNgos(Array.isArray(n) ? n : []);
       setFroWorkers(Array.isArray(f) ? f : []);
+      setNewStation(computeNextName(list));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -77,8 +90,11 @@ export default function StationManagement() {
     if (!newStation.trim()) return;
     setAdding(true);
     try {
-      await apiPost('/ngo-admin/stations', { station: newStation.trim() });
+      const body = { station: newStation.trim() };
+      if (newStationNgo) body.ngo_id = parseInt(newStationNgo);
+      await apiPost('/ngo-admin/stations', body);
       setNewStation('');
+      setNewStationNgo('');
       fetchData();
     } catch (err) {
       alert(err.message);
@@ -134,8 +150,14 @@ export default function StationManagement() {
           <div className="form-row">
             <label className="field" style={{ flex: 1 }}>
               Station Name
-              <input value={newStation} onChange={e => setNewStation(e.target.value)}
-                placeholder="e.g. new_ucs-1" />
+              <input value={newStation} onChange={e => setNewStation(e.target.value)} />
+            </label>
+            <label className="field">
+              NGO
+              <select value={newStationNgo} onChange={e => setNewStationNgo(e.target.value)}>
+                <option value="">— Select NGO —</option>
+                {allNgos.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+              </select>
             </label>
             <button className="btn btn-primary" onClick={handleAddStation} disabled={adding || !newStation.trim()} style={{ alignSelf: 'flex-end' }}>
               {adding ? 'Adding...' : 'Create'}
