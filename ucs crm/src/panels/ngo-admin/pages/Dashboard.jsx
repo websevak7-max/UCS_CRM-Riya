@@ -30,6 +30,11 @@ function StationDetailModal({ station, stats, stationInfo, onClose }) {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   if (!station) return null;
   const total = Object.values(stats || {}).reduce((t, v) => t + v, 0);
   const groupData = DISPOSITION_GROUPS.map(g => ({
@@ -92,28 +97,20 @@ function StationDetailModal({ station, stats, stationInfo, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 820 }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
         <div className="modal-head">
-          <h3>{station}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ margin: 0 }}>{station}</h3>
+            {stationInfo?.fro_worker_name && (
+              <span style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, background: 'var(--bg)', padding: '2px 10px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {stationInfo.fro_worker_name}
+              </span>
+            )}
+          </div>
           <button className="btn btn-sm btn-outline" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--sage)' }}>{total}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>Total Donors</div>
-            </div>
-            <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--sage)' }}>{stationInfo?.ngos?.length || 0}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>NGOs</div>
-            </div>
-          </div>
-          {stationInfo?.fro_worker_name && (
-            <div style={{ marginBottom: 14, padding: '8px 14px', background: '#f0f2ee', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6B4E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{stationInfo.fro_worker_name}</span>
-            </div>
-          )}
           {groupData.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ height: 8, borderRadius: 4, background: '#e5e7eb', display: 'flex', overflow: 'hidden' }}>
