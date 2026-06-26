@@ -387,7 +387,7 @@ async function autoReportMissedSchedules() {
 
     const { data: contacts, error } = await supabase
       .from('fro_scheduled_contacts')
-      .select('*, fro_assignments!inner(id, donor_id, ngo_id, fro_worker_id), workers!fro_assignments!inner(name)')
+      .select('*, fro_assignments!inner(id, donor_id, ngo_id, fro_worker_id)')
       .eq('is_completed', false)
       .eq('reminded', false)
       .lt('scheduled_at', tenMinAgo);
@@ -395,18 +395,24 @@ async function autoReportMissedSchedules() {
     if (error) throw error;
     if (!contacts || contacts.length === 0) return;
 
+    const workerIds = [...new Set(contacts.map(c => c.fro_assignments?.fro_worker_id).filter(Boolean))];
     const donorIds = [...new Set(contacts.map(c => c.fro_assignments?.donor_id).filter(Boolean))];
-    const { data: donors } = donorIds.length > 0
-      ? await supabase.from('donor_profiles').select('id, name').in('id', donorIds)
-      : { data: [] };
+
+    const [donorsRes, workersRes] = await Promise.all([
+      donorIds.length > 0 ? supabase.from('donor_profiles').select('id, name').in('id', donorIds) : { data: [] },
+      workerIds.length > 0 ? supabase.from('workers').select('id, name').in('id', workerIds) : { data: [] },
+    ]);
+
     const donorMap = {};
-    for (const d of donors || []) donorMap[d.id] = d.name || 'Unknown';
+    for (const d of donorsRes.data || []) donorMap[d.id] = d.name || 'Unknown';
+    const workerMap = {};
+    for (const w of workersRes.data || []) workerMap[w.id] = w.name || 'Unknown';
 
     for (const c of contacts) {
       const a = c.fro_assignments;
       if (!a) continue;
       const donorName = donorMap[a.donor_id] || 'Unknown';
-      const froName = c.workers?.name || 'Unknown';
+      const froName = workerMap[a.fro_worker_id] || 'Unknown';
 
       const { error: insErr } = await supabase
         .from('alerts')

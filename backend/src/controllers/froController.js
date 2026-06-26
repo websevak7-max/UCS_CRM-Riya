@@ -661,27 +661,34 @@ export const getFroScheduled = async (req, res) => {
 
     const { data: contacts, error } = await supabase
       .from('fro_scheduled_contacts')
-      .select('*, fro_assignments!inner(id, donor_id, ngo_id, station, ngos(name), fro_worker_id), donor_profiles!fro_assignments!inner(name, mobile_number)')
+      .select('*, fro_assignments!inner(id, donor_id, ngo_id, station, ngos(name))')
       .eq('is_completed', false)
       .in('fro_assignments.station', stationNames)
       .order('scheduled_at', { ascending: true });
 
     if (error) throw error;
 
+    const donorIds = [...new Set((contacts || []).map(c => c.fro_assignments?.donor_id).filter(Boolean))];
+    const { data: donors } = donorIds.length > 0
+      ? await supabase.from('donor_profiles').select('id, name, mobile_number').in('id', donorIds)
+      : { data: [] };
+    const donorMap = {};
+    for (const d of donors || []) donorMap[d.id] = d;
+
     const seen = new Set();
     const result = [];
     for (const c of contacts || []) {
       const a = c.fro_assignments;
-      const d = c.donor_profiles;
-      if (!a || !d) continue;
+      if (!a) continue;
+      const d = donorMap[a.donor_id];
       const key = `${a.donor_id}-${a.ngo_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
       result.push({
         id: a.donor_id,
         ngo_id: a.ngo_id,
-        donor_name: d.name || 'Unknown',
-        donor_mobile: d.mobile_number || '',
+        donor_name: d?.name || 'Unknown',
+        donor_mobile: d?.mobile_number || '',
         scheduled_at: c.scheduled_at,
         schedule_id: c.id,
         schedule_notes: c.notes,
@@ -702,25 +709,30 @@ export const getFroCallbacks = async (req, res) => {
 
     const { data: assignments, error } = await supabase
       .from('fro_assignments')
-      .select('*, donor_profiles!inner(name, mobile_number), ngos(name)')
+      .select('*')
       .in('station', stationNames)
-      .in('status', ['follow_up', 'scheduled'])
-      .not('status', 'eq', 'reassigned');
+      .in('status', ['follow_up', 'scheduled']);
 
     if (error) throw error;
 
     const assignmentIds = (assignments || []).map(a => a.id);
-    const { data: activeSchedules } = assignmentIds.length > 0
-      ? await supabase.from('fro_scheduled_contacts').select('assignment_id').in('assignment_id', assignmentIds).eq('is_completed', false)
-      : { data: [] };
+    const [donorsRes, schedulesRes] = await Promise.all([
+      supabase.from('donor_profiles').select('id, name, mobile_number')
+        .in('id', [...new Set(assignments.map(a => a.donor_id).filter(Boolean))]),
+      assignmentIds.length > 0
+        ? supabase.from('fro_scheduled_contacts').select('assignment_id').in('assignment_id', assignmentIds).eq('is_completed', false)
+        : { data: [] },
+    ]);
 
-    const activeAssignmentIds = new Set((activeSchedules || []).map(s => s.assignment_id));
+    const donorMap = {};
+    for (const d of donorsRes.data || []) donorMap[d.id] = d;
+    const activeAssignmentIds = new Set((schedulesRes.data || []).map(s => s.assignment_id));
 
     const seen = new Set();
     const result = [];
     for (const a of assignments || []) {
       if (activeAssignmentIds.has(a.id)) continue;
-      const d = a.donor_profiles;
+      const d = donorMap[a.donor_id];
       if (!d) continue;
       const key = `${a.donor_id}-${a.ngo_id}`;
       if (seen.has(key)) continue;
@@ -749,7 +761,7 @@ export const getMyHistory = async (req, res) => {
 
     const { data: logs, error } = await supabase
       .from('fro_donor_logs')
-      .select('*, fro_assignments!inner(fro_worker_id, donor_id, station), donor_profiles!fro_assignments!inner(name, mobile_number)')
+      .select('*, fro_assignments!inner(fro_worker_id, donor_id, station)')
       .eq('fro_assignments.fro_worker_id', workerId)
       .in('fro_assignments.station', stationNames)
       .order('created_at', { ascending: false })
@@ -757,8 +769,15 @@ export const getMyHistory = async (req, res) => {
 
     if (error) throw error;
 
+    const donorIds = [...new Set((logs || []).map(l => l.donor_id).filter(Boolean))];
+    const { data: donors } = donorIds.length > 0
+      ? await supabase.from('donor_profiles').select('id, name, mobile_number').in('id', donorIds)
+      : { data: [] };
+    const donorMap = {};
+    for (const d of donors || []) donorMap[d.id] = d;
+
     const result = (logs || []).map(l => {
-      const d = l.donor_profiles || {};
+      const d = donorMap[l.donor_id] || {};
       return {
         id: l.id,
         donor_id: l.donor_id,
