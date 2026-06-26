@@ -401,48 +401,44 @@ export default function Dashboard() {
       </div>
 
       {stationNames.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
-          {stationNames.map(st => {
-            const total = getStationTotal(st);
-            const info = stationInfoMap[st];
-            const hasFro = info?.fro_worker_name;
-            const groupCounts = DISPOSITION_GROUPS.map(g => ({
-              ...g, count: g.statuses.reduce((t, s) => t + getCell(st, s), 0),
-            }));
-            const visibleGroups = groupCounts.filter(g => g.count > 0);
-            return (
-              <div key={st} className="card" style={{ marginBottom: 0, padding: '14px 16px', cursor: 'pointer' }}
-                onClick={() => setSelectedStation(st)}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--sage)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  <span style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500, flex: 1 }}>{st}</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>{total}</span>
-                </div>
-                <div style={{ height: 4, borderRadius: 2, background: '#e5e7eb', display: 'flex', overflow: 'hidden', marginBottom: 8 }}>
-                  {visibleGroups.map((g, i) => (
-                    <div key={g.label} style={{
-                      width: `${(g.count / total) * 100}%`, height: '100%',
-                      background: g.color, opacity: 0.5,
-                      borderRight: i < visibleGroups.length - 1 ? '1px solid #fff' : 'none',
-                    }} />
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
-                  {visibleGroups.slice(0, 3).map(g => (
-                    <span key={g.label} style={{ fontSize: 10, color: g.color, fontWeight: 600, padding: '1px 7px', borderRadius: 8, background: g.bg }}>{g.count}</span>
-                  ))}
-                </div>
-                {hasFro && (
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    {info.fro_worker_name}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head">
+            <h3>Stations</h3>
+            <span className="count">{stationNames.length} total</span>
+          </div>
+          <div className="card-pad" style={{ padding: 0 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Station</th>
+                  <th>Donors</th>
+                  <th>Converted</th>
+                  <th>In Progress</th>
+                  <th>Negative</th>
+                  <th>FRO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stationNames.map(st => {
+                  const total = getStationTotal(st);
+                  const info = stationInfoMap[st];
+                  const converted = DISPOSITION_GROUPS[0].statuses.reduce((t, s) => t + getCell(st, s), 0);
+                  const inProgress = DISPOSITION_GROUPS[1].statuses.reduce((t, s) => t + getCell(st, s), 0);
+                  const negative = DISPOSITION_GROUPS[2].statuses.reduce((t, s) => t + getCell(st, s), 0);
+                  return (
+                    <tr key={st} onClick={() => setSelectedStation(st)} style={{ cursor: 'pointer' }}>
+                      <td style={{ fontWeight: 600 }}>{st}</td>
+                      <td>{total}</td>
+                      <td style={{ color: '#16a34a', fontWeight: 600 }}>{converted}</td>
+                      <td style={{ color: '#d97706', fontWeight: 600 }}>{inProgress}</td>
+                      <td style={{ color: '#dc2626', fontWeight: 600 }}>{negative}</td>
+                      <td style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{info?.fro_worker_name || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
