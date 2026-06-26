@@ -1175,25 +1175,68 @@ export const getAlerts = async (req, res) => {
     const ngoIds = await getUserNgoIds(req.user);
     if (ngoIds.length === 0) return res.json({ alerts: [] });
 
-    const { data, error } = await supabase
-      .from('alerts')
-      .select('*')
-      .in('ngo_id', ngoIds)
+    const results = [];
+
+    const { data: requests, error: reqErr } = await supabase
+      .from('fro_data_requests')
+      .select('*, workers!inner(id, name, ngo_id)')
+      .in('workers.ngo_id', ngoIds)
       .order('created_at', { ascending: false })
       .limit(100);
+    if (!reqErr && requests) {
+      for (const r of requests) {
+        results.push({
+          id: `dr_${r.id}`,
+          ngo_id: r.workers?.ngo_id,
+          type: 'data_request',
+          title: 'Data Request',
+          description: r.message,
+          fro_name: r.workers?.name || 'Unknown',
+          created_at: r.created_at,
+          acknowledged: r.status !== 'pending',
+        });
+      }
+    }
 
-    if (error) throw error;
-    return res.json({ alerts: data || [] });
+    try {
+      const { data: alerts, error: alertErr } = await supabase
+        .from('alerts')
+        .select('*')
+        .in('ngo_id', ngoIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (!alertErr && alerts) {
+        results.push(...alerts);
+      }
+    } catch (_) {}
+
+    results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    return res.json({ alerts: results.slice(0, 100) });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.json({ alerts: [] });
   }
 };
 
 export const acknowledgeAlert = async (req, res) => {
   try {
-    const alertId = parseInt(req.params.id);
+    const rawId = req.params.id;
     const ngoIds = await getUserNgoIds(req.user);
 
+    if (typeof rawId === 'string' && rawId.startsWith('dr_')) {
+      const realId = parseInt(rawId.replace('dr_', ''));
+      const { data: reqData } = await supabase
+        .from('fro_data_requests')
+        .select('id, workers!inner(ngo_id)')
+        .eq('id', realId)
+        .maybeSingle();
+      if (!reqData) return res.status(404).json({ message: 'Request not found' });
+      if (!ngoIds.includes(reqData.workers?.ngo_id)) return res.status(403).json({ message: 'Access denied' });
+      await supabase.from('fro_data_requests').update({ status: 'acknowledged' }).eq('id', realId);
+      return res.json({ message: 'Request acknowledged' });
+    }
+
+    const alertId = parseInt(rawId);
     const { data: alert } = await supabase
       .from('alerts')
       .select('ngo_id')
