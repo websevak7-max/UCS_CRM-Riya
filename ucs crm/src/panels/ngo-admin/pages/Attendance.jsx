@@ -113,9 +113,7 @@ export default function NgoAttendance() {
   const [froWorkers, setFroWorkers] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedWorker, setSelectedWorker] = useState(null);
-  const [month, setMonth] = useState(() => {
-    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -135,10 +133,8 @@ export default function NgoAttendance() {
     );
   }
 
-  const [year, m] = month.split('-');
   let filtered = records.filter(r => {
-    const d = r.date || '';
-    return d.startsWith(`${year}-${m}`) && froIds.has(r.worker_id);
+    return r.date === date && froIds.has(r.worker_id);
   });
 
   if (search) {
@@ -153,7 +149,7 @@ export default function NgoAttendance() {
         <div className="card-pad">
           {err && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#991b1b' }}>{err}</div>}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
               style={{ fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line, #e5e7eb)' }} />
             <input placeholder="Search worker…" value={search} onChange={e => setSearch(e.target.value)}
               style={{ fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line, #e5e7eb)', flex: 1, maxWidth: 240 }} />
@@ -195,7 +191,7 @@ export default function NgoAttendance() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>No FRO attendance records for this month</td></tr>
+                  <tr>                  <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>No FRO attendance records for this date</td></tr>
                 )}
               </tbody>
             </table>
