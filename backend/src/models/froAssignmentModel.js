@@ -285,7 +285,6 @@ export const createTemporaryTransfer = async (sourceFroId, ngoId, sourceStation,
     return { transfer: null, transferred: 0 };
   }
 
-  const donorIds = assignments.map(a => a.donor_id);
   const ids = assignments.map(a => a.id);
   await supabase.from('fro_assignments').update({ status: 'reassigned', updated_at: new Date().toISOString() }).in('id', ids);
 
@@ -295,9 +294,8 @@ export const createTemporaryTransfer = async (sourceFroId, ngoId, sourceStation,
     assigned_at: new Date().toISOString(),
   }));
 
-  await supabase.from('fro_assignments').insert(newAssignments);
-
-  await supabase.from('fro_transfers').update({ transferred_donor_ids: donorIds }).eq('id', transfer.id);
+  const { error: insErr } = await supabase.from('fro_assignments').insert(newAssignments);
+  if (insErr) throw insErr;
 
   return { transfer, transferred: assignments.length };
 };
@@ -306,8 +304,8 @@ export const reverseTransfer = async (transferId) => {
   const { data: transfer } = await supabase.from('fro_transfers').select('*').eq('id', transferId).single();
   if (!transfer || transfer.returned) return 0;
 
-  const donorIds = transfer.transferred_donor_ids || [];
-  if (donorIds.length === 0) {
+  const createdAt = transfer.created_at;
+  if (!createdAt) {
     await supabase.from('fro_transfers').update({ returned: true, returned_at: new Date().toISOString() }).eq('id', transferId);
     return 0;
   }
@@ -315,7 +313,10 @@ export const reverseTransfer = async (transferId) => {
   const { data: assignments } = await supabase
     .from('fro_assignments')
     .select('id, donor_id, status, station')
-    .in('donor_id', donorIds)
+    .eq('station', transfer.target_station || transfer.station)
+    .eq('ngo_id', transfer.ngo_id)
+    .is('fro_worker_id', null)
+    .gte('assigned_at', createdAt)
     .not('status', 'eq', 'reassigned');
 
   if (!assignments || assignments.length === 0) {
