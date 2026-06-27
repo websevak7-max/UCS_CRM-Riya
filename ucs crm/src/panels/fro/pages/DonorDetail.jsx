@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getDonorDetail, addDonorLog, uploadPaymentScreenshot } from '../api/donors';
+import { DatePicker } from '../components/ui';
+import { TimePicker } from '../components/TimePicker';
 
 const NOT_CONNECTED = [
   { id: 'busy', label: 'Busy' },
@@ -13,7 +15,8 @@ const NOT_CONNECTED = [
 
 const CONNECTED = [
   { id: 'lead_done', label: 'Lead Done' },
-  { id: 'scheduled', label: 'Schedule' },
+  { id: 'scheduled', label: 'Follow Up' },
+  { id: 'callback', label: 'Callback' },
   { id: 'visit_donate', label: 'Visit & Donate' },
   { id: 'promise_to_pay', label: 'Promise to Pay' },
   { id: 'payment_pending', label: 'Payment Pending' },
@@ -45,7 +48,10 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
   const [selected, setSelected] = useState(null);
   const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [dateConfirmed, setDateConfirmed] = useState(false);
+  const [callbackTime, setCallbackTime] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [panNumber, setPanNumber] = useState('');
@@ -72,9 +78,14 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
     setSelected(detail);
     setMessage(null);
     if (detail === 'scheduled') {
-      const now = new Date();
-      now.setMinutes(now.getMinutes() + 5 - now.getTimezoneOffset());
-      setScheduledAt(now.toISOString().slice(0, 16));
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      setScheduledDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      setScheduledTime('');
+      setDateConfirmed(false);
+    }
+    if (detail === 'callback') {
+      setCallbackTime(new Date().toTimeString().slice(0, 5));
     }
     if (detail !== 'lead_done') {
       setPaymentAmount('');
@@ -100,8 +111,12 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
       setMessage({ type: 'error', text: 'Select a disposition' });
       return;
     }
-    if (selected === 'scheduled' && !scheduledAt) {
+    if (selected === 'scheduled' && (!scheduledDate || !scheduledTime)) {
       setMessage({ type: 'error', text: 'Select date & time' });
+      return;
+    }
+    if (selected === 'callback' && !callbackTime) {
+      setMessage({ type: 'error', text: 'Select time for callback' });
       return;
     }
     if (selected === 'lead_done') {
@@ -132,7 +147,14 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
       };
 
       if (selected === 'scheduled') {
-        logData.scheduled_at = new Date(scheduledAt + ':00').toISOString();
+        logData.scheduled_at = new Date(scheduledDate + 'T' + scheduledTime + ':00').toISOString();
+      }
+
+      if (selected === 'callback') {
+        const today = new Date();
+        const [h, m] = callbackTime.split(':');
+        today.setHours(+h, +m, 0, 0);
+        logData.scheduled_at = today.toISOString();
       }
 
       if (selected === 'lead_done') {
@@ -155,6 +177,9 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
       setMessage({ type: 'success', text: selected === 'lead_done' ? 'Sent to Accounts for review' : 'Disposition logged' });
       setSelected(null);
       setNotes('');
+      setScheduledDate('');
+      setScheduledTime('');
+      setCallbackTime('');
       setPaymentAmount('');
       setPaymentScreenshot(null);
       setPanNumber('');
@@ -266,9 +291,24 @@ export default function DonorDetail({ assignmentId, donor, onBack, hideHeader })
           )}
 
           {selected === 'scheduled' && (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--ink-soft)' }}>Follow Up Date</label>
+                <DatePicker value={scheduledDate} onChange={e => { setScheduledDate(e.target.value); setDateConfirmed(true); }} placeholder="Select date" />
+              </div>
+              {dateConfirmed && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--ink-soft)' }}>Follow Up Time</label>
+                  <TimePicker value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} placeholder="Select time" />
+                </div>
+              )}
+            </>
+          )}
+
+          {selected === 'callback' && (
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--ink-soft)' }}>Schedule Date & Time</label>
-              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', fontFamily: 'inherit', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--ink-soft)' }}>Callback Time (Today)</label>
+              <TimePicker value={callbackTime} onChange={e => setCallbackTime(e.target.value)} placeholder="Select time" />
             </div>
           )}
 

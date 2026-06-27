@@ -14,7 +14,7 @@ import MyTarget from './pages/MyTarget'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'scheduled', label: 'Scheduled / Callback', icon: 'calendar_month' },
+  { id: 'scheduled', label: 'Follow Up / Callback', icon: 'calendar_month' },
   { id: 'my-leads', label: 'My Leads', icon: 'group' },
   { id: 'donors', label: 'Donors', icon: 'card_giftcard' },
   { id: 'logs', label: 'Call Logs', icon: 'call_log' },
@@ -82,29 +82,17 @@ export default function FROPanel() {
 
   const loadReminders = () => {
     Promise.all([getScheduled(), getCallbacks()]).then(([scheduled, callbacks]) => {
+      const todayStr = new Date().toISOString().slice(0, 10);
       const items = [];
       (scheduled || []).forEach(d => {
-        items.push({
-          id: d.id,
-          ngo_id: d.ngo_id,
-          donor_name: d.donor_name,
-          donor_mobile: d.donor_mobile,
-          scheduled_at: d.scheduled_at,
-          assignment_id: d.assignment_id,
-          type: 'scheduled',
-        });
+        items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: d.scheduled_at, assignment_id: d.assignment_id, type: 'scheduled' });
       });
       (callbacks || []).forEach(d => {
-        if (!items.find(i => i.id === d.id && i.ngo_id === d.ngo_id)) {
-          items.push({
-            id: d.id,
-            ngo_id: d.ngo_id,
-            donor_name: d.donor_name,
-            donor_mobile: d.donor_mobile,
-            scheduled_at: null,
-            assignment_id: d.assignment_id,
-            type: 'callback',
-          });
+        items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: d.scheduled_at || null, assignment_id: d.assignment_id, type: 'callback' });
+      });
+      (scheduled || []).forEach(d => {
+        if (d.scheduled_at && d.scheduled_at.slice(0, 10) === todayStr) {
+          items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: d.scheduled_at, assignment_id: d.assignment_id, type: 'callback' });
         }
       });
       setRows(items);
@@ -121,7 +109,7 @@ export default function FROPanel() {
   useEffect(() => {
     if (modalDonor) return;
     const due = rows
-      .filter(r => r.type === 'scheduled' && r.scheduled_at && new Date(r.scheduled_at) <= new Date() && !poppedIds.current.has(r.id))
+      .filter(r => r.scheduled_at && new Date(r.scheduled_at) <= new Date() && !poppedIds.current.has(r.id))
       .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
     if (due.length > 0) {
       const next = due[0];

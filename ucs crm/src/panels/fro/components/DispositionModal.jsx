@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { addDonorLog } from '../api/donors';
+import { DatePicker } from './ui';
+import { TimePicker } from './TimePicker';
 
 const NOT_CONNECTED = [
   { id: 'busy', label: 'Busy' }, { id: 'ringing', label: 'Ringing' },
@@ -8,7 +10,8 @@ const NOT_CONNECTED = [
   { id: 'rejected', label: 'Rejected' },
 ];
 const CONNECTED = [
-  { id: 'lead_done', label: 'Lead Done' }, { id: 'scheduled', label: 'Schedule' },
+  { id: 'lead_done', label: 'Lead Done' }, { id: 'scheduled', label: 'Follow Up' },
+  { id: 'callback', label: 'Callback' },
   { id: 'visit_donate', label: 'Visit & Donate' }, { id: 'promise_to_pay', label: 'Promise to Pay' },
   { id: 'payment_pending', label: 'Payment Pending' }, { id: 'already_donated', label: 'Already Donated' },
   { id: 'not_interested_now', label: 'Not Interested Now' }, { id: 'language_barrier', label: 'Language Barrier' },
@@ -22,24 +25,35 @@ const findDisp = (id) => ALL_DISPOSITIONS.find(d => d.id === id);
 export default function DispositionModal({ donorId, ngoId, donorName, scheduledAt: origScheduledAt, onClose, onDone }) {
   const [selected, setSelected] = useState(null);
   const [notes, setNotes] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [dateConfirmed, setDateConfirmed] = useState(false);
+  const [callbackTime, setCallbackTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const isOverdue = origScheduledAt && new Date(origScheduledAt) < new Date();
 
   const handleSave = async () => {
     if (!selected) { setMessage({ type: 'error', text: 'Select a disposition' }); return; }
-    if (selected === 'scheduled' && !scheduledAt) { setMessage({ type: 'error', text: 'Select date & time' }); return; }
+    if (selected === 'scheduled' && (!scheduledDate || !scheduledTime)) { setMessage({ type: 'error', text: 'Select date & time' }); return; }
+    if (selected === 'callback' && !callbackTime) { setMessage({ type: 'error', text: 'Select time for callback' }); return; }
     setSaving(true);
     try {
-      await addDonorLog(donorId, {
+      const logPayload = {
         action: 'disposition',
         disposition_category: CONNECTED_IDS.has(selected) ? 'connected' : 'not_connected',
         disposition_detail: selected,
         notes: notes || null,
         ngo_id: ngoId,
-        ...(selected === 'scheduled' && { scheduled_at: new Date(scheduledAt + ':00').toISOString() }),
-      });
+      };
+      if (selected === 'scheduled') logPayload.scheduled_at = new Date(scheduledDate + 'T' + scheduledTime + ':00').toISOString();
+      if (selected === 'callback') {
+        const today = new Date();
+        const [h, m] = callbackTime.split(':');
+        today.setHours(+h, +m, 0, 0);
+        logPayload.scheduled_at = today.toISOString();
+      }
+      await addDonorLog(donorId, logPayload);
       onDone();
       onClose();
     } catch (err) {
@@ -68,7 +82,7 @@ export default function DispositionModal({ donorId, ngoId, donorName, scheduledA
           )}
           <div>
             <label style={{ display: 'block', fontSize: 9, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Connected</label>
-            <select value={selected !== null && CONNECTED_IDS.has(selected) ? selected : ''} onChange={e => { if (e.target.value) { setSelected(e.target.value); if (e.target.value === 'scheduled') { const n = new Date(); n.setMinutes(n.getMinutes() + 5 - n.getTimezoneOffset()); setScheduledAt(n.toISOString().slice(0, 16)); } }}}
+            <select value={selected !== null && CONNECTED_IDS.has(selected) ? selected : ''} onChange={e => { if (e.target.value) { setSelected(e.target.value); if (e.target.value === 'scheduled') { const d = new Date(); d.setDate(d.getDate() + 1); setScheduledDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`); setScheduledTime(''); setDateConfirmed(false); } if (e.target.value === 'callback') { setCallbackTime(new Date().toTimeString().slice(0, 5)); } }}}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)', borderRadius: 5, fontSize: 11, fontFamily: 'inherit' }}>
               <option value="">— Select —</option>
               {CONNECTED.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
@@ -83,10 +97,23 @@ export default function DispositionModal({ donorId, ngoId, donorName, scheduledA
             </select>
           </div>
           {selected === 'scheduled' && (
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: 9, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Follow Up Date</label>
+                <DatePicker value={scheduledDate} onChange={e => { setScheduledDate(e.target.value); setDateConfirmed(true); }} placeholder="Select date" />
+              </div>
+              {dateConfirmed && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 9, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Follow Up Time</label>
+                  <TimePicker value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} placeholder="Select time" />
+                </div>
+              )}
+            </>
+          )}
+          {selected === 'callback' && (
             <div>
-              <label style={{ display: 'block', fontSize: 9, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Schedule Date & Time</label>
-              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-                style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--line)', borderRadius: 5, fontSize: 11, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', fontSize: 9, fontWeight: 600, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Callback Time (Today)</label>
+              <TimePicker value={callbackTime} onChange={e => setCallbackTime(e.target.value)} placeholder="Select time" />
             </div>
           )}
           <div>

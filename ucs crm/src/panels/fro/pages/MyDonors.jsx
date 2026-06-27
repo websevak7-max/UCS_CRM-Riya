@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMyDonors, getDonorDetail, addDonorLog, markDonorSeen, uploadPaymentScreenshot, getDonorDonations } from '../api/donors';
 import { SkeletonProfile } from '../../../components/Skeleton';
+import { DatePicker } from '../components/ui';
+import { TimePicker } from '../components/TimePicker';
 
 const NOT_CONNECTED = [
   { id: 'busy', label: 'Busy' }, { id: 'ringing', label: 'Ringing' },
@@ -14,7 +16,8 @@ const PROJECTS = [
 ];
 
 const CONNECTED = [
-  { id: 'lead_done', label: 'Lead Done' }, { id: 'scheduled', label: 'Schedule' },
+  { id: 'lead_done', label: 'Lead Done' }, { id: 'scheduled', label: 'Follow Up' },
+  { id: 'callback', label: 'Callback' },
   { id: 'visit_donate', label: 'Visit & Donate' }, { id: 'promise_to_pay', label: 'Promise to Pay' },
   { id: 'payment_pending', label: 'Payment Pending' }, { id: 'already_donated', label: 'Already Donated' },
   { id: 'not_interested_now', label: 'Not Interested Now' }, { id: 'language_barrier', label: 'Language Barrier' },
@@ -30,7 +33,7 @@ const findDisp = (id) => ALL_DISPOSITIONS.find(d => d.id === id);
 
 const STATUS_PILL_MAP = {
   pending: 'pill-yellow', contacted: 'pill-blue', scheduled: 'pill-purple',
-  follow_up: 'pill-purple', busy: 'pill-gray', ringing: 'pill-gray',
+  callback: 'pill-purple', follow_up: 'pill-purple', busy: 'pill-gray', ringing: 'pill-gray',
   unreachable: 'pill-gray', switched_off: 'pill-gray', wrong_number: 'pill-gray',
   invalid_number: 'pill-gray', rejected: 'pill-red', lead_done: 'pill-green',
   visit_donate: 'pill-green', donation_collected: 'pill-green', promise_to_pay: 'pill-blue',
@@ -51,7 +54,10 @@ export default function MyDonors() {
 
   const [selected, setSelected] = useState(null);
   const [notes, setNotes] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [dateConfirmed, setDateConfirmed] = useState(false);
+  const [callbackTime, setCallbackTime] = useState('');
   const [leadScreenshot, setLeadScreenshot] = useState(null);
   const [leadAddress, setLeadAddress] = useState('');
   const [leadPan, setLeadPan] = useState('');
@@ -113,9 +119,15 @@ export default function MyDonors() {
     setSelected(detailId);
     setMessage(null);
     if (detailId === 'scheduled') {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      setScheduledDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      setScheduledTime('');
+      setDateConfirmed(false);
+    }
+    if (detailId === 'callback') {
       const now = new Date();
-      now.setMinutes(now.getMinutes() + 5 - now.getTimezoneOffset());
-      setScheduledAt(now.toISOString().slice(0, 16));
+      setCallbackTime(now.toTimeString().slice(0, 5));
     }
     if (detailId === 'lead_done') {
       setProjectName(donor?.donor_project || '');
@@ -172,7 +184,8 @@ export default function MyDonors() {
 
   const handleSave = async () => {
     if (!selected) { setMessage({ type: 'error', text: 'Select a disposition' }); return; }
-    if (selected === 'scheduled' && !scheduledAt) { setMessage({ type: 'error', text: 'Select date & time' }); return; }
+    if (selected === 'scheduled' && (!scheduledDate || !scheduledTime)) { setMessage({ type: 'error', text: 'Select date & time' }); return; }
+    if (selected === 'callback' && !callbackTime) { setMessage({ type: 'error', text: 'Select time for callback' }); return; }
 
     setSaving(true); setMessage(null);
     try {
@@ -183,7 +196,13 @@ export default function MyDonors() {
         notes: notes || null,
         ngo_id: donor.ngo_id,
       };
-      if (selected === 'scheduled') logData.scheduled_at = new Date(scheduledAt + ':00').toISOString();
+      if (selected === 'scheduled') logData.scheduled_at = new Date(scheduledDate + 'T' + scheduledTime + ':00').toISOString();
+      if (selected === 'callback') {
+        const today = new Date();
+        const [h, m] = callbackTime.split(':');
+        today.setHours(+h, +m, 0, 0);
+        logData.scheduled_at = today.toISOString();
+      }
       if (selected === 'lead_done') {
         if (leadScreenshot) {
           const uploadResult = await uploadPaymentScreenshot(leadScreenshot.base64, leadScreenshot.mime);
@@ -195,7 +214,7 @@ export default function MyDonors() {
         logData.project_name = projectName || null;
       }
       await addDonorLog(donor.id, logData);
-      setSelected(null); setNotes(''); setLeadScreenshot(null); setScreenshotPreview(null); setLeadAddress(''); setLeadPan(''); setPanError(''); setLeadDob(''); setProjectName('');
+      setSelected(null); setNotes(''); setScheduledDate(''); setScheduledTime(''); setCallbackTime(''); setLeadScreenshot(null); setScreenshotPreview(null); setLeadAddress(''); setLeadPan(''); setPanError(''); setLeadDob(''); setProjectName('');
       const nextDonors = donors.filter(d => d.id !== donor.id || d.ngo_id !== donor.ngo_id);
       setDonors(nextDonors);
       if (index >= nextDonors.length && nextDonors.length > 0) setIndex(0);
@@ -366,10 +385,29 @@ export default function MyDonors() {
               </div>
 
               {selected === 'scheduled' && (
+                <>
+                  <div className="detail-field-row">
+                    <div className="fld">
+                      <label>Follow Up Date</label>
+                      <DatePicker value={scheduledDate} onChange={e => { setScheduledDate(e.target.value); setDateConfirmed(true); }} placeholder="Select date" />
+                    </div>
+                  </div>
+                  {dateConfirmed && (
+                    <div className="detail-field-row">
+                      <div className="fld">
+                        <label>Follow Up Time</label>
+                        <TimePicker value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} placeholder="Select time" />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {selected === 'callback' && (
                 <div className="detail-field-row">
                   <div className="fld">
-                    <label>Schedule Date & Time</label>
-                    <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
+                    <label>Callback Time (Today)</label>
+                    <TimePicker value={callbackTime} onChange={e => setCallbackTime(e.target.value)} placeholder="Select time" />
                   </div>
                 </div>
               )}

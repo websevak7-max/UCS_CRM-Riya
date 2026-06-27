@@ -4,7 +4,7 @@ import DispositionModal from '../components/DispositionModal';
 import { SkeletonTable } from '../../../components/Skeleton';
 
 const TABS = [
-  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'scheduled', label: 'Follow Up' },
   { id: 'callback', label: 'Callback' },
 ];
 
@@ -32,27 +32,17 @@ export default function Scheduled() {
   const loadRows = () => {
     setLoading(true);
     Promise.all([getScheduled(), getCallbacks()]).then(([scheduled, callbacks]) => {
+      const todayStr = new Date().toISOString().slice(0, 10);
       const items = [];
       (scheduled || []).forEach(d => {
-        items.push({
-          id: d.id,
-          ngo_id: d.ngo_id,
-          donor_name: d.donor_name,
-          donor_mobile: d.donor_mobile,
-          scheduled_at: d.scheduled_at,
-          type: 'scheduled',
-        });
+        items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: d.scheduled_at, type: 'scheduled' });
       });
       (callbacks || []).forEach(d => {
-        if (!items.find(i => i.id === d.id && i.ngo_id === d.ngo_id)) {
-          items.push({
-            id: d.id,
-            ngo_id: d.ngo_id,
-            donor_name: d.donor_name,
-            donor_mobile: d.donor_mobile,
-            scheduled_at: null,
-            type: 'callback',
-          });
+        items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: null, type: 'callback' });
+      });
+      (scheduled || []).forEach(d => {
+        if (d.scheduled_at && d.scheduled_at.slice(0, 10) === todayStr) {
+          items.push({ id: d.id, ngo_id: d.ngo_id, donor_name: d.donor_name, donor_mobile: d.donor_mobile, scheduled_at: d.scheduled_at, type: 'callback' });
         }
       });
       setRows(items);
@@ -72,7 +62,7 @@ export default function Scheduled() {
   useEffect(() => {
     if (modalDonor) return;
     const due = rows
-      .filter(r => r.type === 'scheduled' && r.scheduled_at && new Date(r.scheduled_at) <= new Date() && !poppedIds.current.has(r.id))
+      .filter(r => r.scheduled_at && new Date(r.scheduled_at) <= new Date() && !poppedIds.current.has(r.id))
       .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
     if (due.length > 0) {
       const next = due[0];
@@ -116,7 +106,7 @@ export default function Scheduled() {
       {/* Table */}
       <div style={{ flex:1, overflowY:'auto' }}>
         {list.length === 0 ? (
-          <div style={{ textAlign:'center', padding:40, fontSize:12, color:'var(--ink-soft)' }}>No {tab} entries.</div>
+          <div style={{ textAlign:'center', padding:40, fontSize:12, color:'var(--ink-soft)' }}>No {TABS.find(t => t.id === tab)?.label || tab} entries.</div>
         ) : (
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
             <thead>

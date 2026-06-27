@@ -207,7 +207,7 @@ export const getDashboard = async (req, res) => {
 };
 
 const NOT_CONNECTED_STATUSES = ['busy', 'ringing', 'unreachable', 'switched_off', 'wrong_number', 'invalid_number', 'rejected'];
-const CONNECTED_STATUSES = ['contacted', 'donation_collected', 'lead_done', 'follow_up', 'scheduled', 'visit_donate', 'promise_to_pay', 'payment_pending', 'already_donated', 'language_barrier', 'transferred_senior', 'query_complaint', 'receipt_request'];
+const CONNECTED_STATUSES = ['contacted', 'donation_collected', 'lead_done', 'follow_up', 'scheduled', 'callback', 'visit_donate', 'promise_to_pay', 'payment_pending', 'already_donated', 'language_barrier', 'transferred_senior', 'query_complaint', 'receipt_request'];
 
 export const getMyDonors = async (req, res) => {
   try {
@@ -457,6 +457,16 @@ export const createDonorLogHandler = async (req, res) => {
         statusUpdates.next_follow_up = scheduled_at.slice(0, 10);
       }
 
+      if (disposition_detail === 'callback' && scheduled_at) {
+        await createScheduledContact({
+          assignment_id: assignment.id,
+          scheduled_at,
+          notes: notes || null,
+          created_by: workerId,
+        });
+        statusUpdates.next_follow_up = scheduled_at.slice(0, 10);
+      }
+
       if (outcome && outcome.startsWith('next_date:')) {
         statusUpdates.next_follow_up = outcome.replace('next_date:', '').trim();
       }
@@ -533,6 +543,7 @@ function dispositionDetailToStatus(detail) {
     rejected: 'rejected',
     lead_done: 'lead_done',
     scheduled: 'scheduled',
+    callback: 'callback',
     visit_donate: 'visit_donate',
     promise_to_pay: 'promise_to_pay',
     payment_pending: 'payment_pending',
@@ -758,7 +769,7 @@ export const getFroCallbacks = async (req, res) => {
       .from('fro_assignments')
       .select('*')
       .in('station', stationNames)
-      .in('status', ['follow_up', 'scheduled']);
+      .in('status', ['follow_up', 'scheduled', 'callback']);
 
     if (error) throw error;
 
@@ -767,18 +778,20 @@ export const getFroCallbacks = async (req, res) => {
       supabase.from('donor_profiles').select('id, name, mobile_number')
         .in('id', [...new Set(assignments.map(a => a.donor_id).filter(Boolean))]),
       assignmentIds.length > 0
-        ? supabase.from('fro_scheduled_contacts').select('assignment_id').in('assignment_id', assignmentIds).eq('is_completed', false)
+        ? supabase.from('fro_scheduled_contacts').select('assignment_id, scheduled_at').in('assignment_id', assignmentIds).eq('is_completed', false)
         : { data: [] },
     ]);
 
     const donorMap = {};
     for (const d of donorsRes.data || []) donorMap[d.id] = d;
-    const activeAssignmentIds = new Set((schedulesRes.data || []).map(s => s.assignment_id));
+    const scheduleMap = {};
+    for (const s of schedulesRes.data || []) {
+      if (!scheduleMap[s.assignment_id]) scheduleMap[s.assignment_id] = s.scheduled_at;
+    }
 
     const seen = new Set();
     const result = [];
     for (const a of assignments || []) {
-      if (activeAssignmentIds.has(a.id)) continue;
       const d = donorMap[a.donor_id];
       if (!d) continue;
       const key = `${a.donor_id}-${a.ngo_id}`;
@@ -789,6 +802,7 @@ export const getFroCallbacks = async (req, res) => {
         ngo_id: a.ngo_id,
         donor_name: d.name || 'Unknown',
         donor_mobile: d.mobile_number || '',
+        scheduled_at: scheduleMap[a.id] || null,
         status: a.status,
         next_follow_up: a.next_follow_up,
         assignment_id: a.id,
