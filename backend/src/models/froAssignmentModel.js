@@ -264,7 +264,7 @@ export const createTemporaryTransfer = async (sourceFroId, ngoId, sourceStation,
     .from('fro_transfers')
     .insert([{
       station: sourceStation, source_fro_worker_id: sourceFroId, target_fro_worker_id: null,
-      target_station, ngo_id: ngoId, donor_count: count, auto_return_at: autoReturnAt, created_by: assignedBy,
+      target_station: targetStation, ngo_id: ngoId, donor_count: count, auto_return_at: autoReturnAt, created_by: assignedBy,
     }])
     .select()
     .single();
