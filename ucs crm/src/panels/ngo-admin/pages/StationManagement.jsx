@@ -325,94 +325,135 @@ export default function StationManagement() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head" onClick={() => setShowHistory(!showHistory)} style={{ cursor: 'pointer' }}>
-          <h3>Transfers</h3>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="count">{transfers.length} total</span>
-            <span style={{ fontSize: 16, color: '#6b7280' }}>{showHistory ? '▲' : '▼'}</span>
+      {activeTransfers.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--sage, #5B6B4E)' }}>
+          <div className="card-head">
+            <h3>Active Transfers</h3>
+            <span className="count">{activeTransfers.length}</span>
+          </div>
+          <div className="card-pad">
+            {activeTransfers.map(t => {
+              const timeLeft = t.auto_return_at ? new Date(t.auto_return_at) - new Date() : 0;
+              const hoursLeft = Math.max(0, Math.floor(timeLeft / 3600000));
+              const minsLeft = Math.max(0, Math.floor((timeLeft % 3600000) / 60000));
+              const isExpanded = expandedTransfer === t.id;
+              return (
+                <div key={t.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line, #e5e7eb)', fontSize: 13 }}>
+                    <div style={{ flex: 1 }}>
+                      <button className="btn btn-sm" onClick={() => setExpandedTransfer(isExpanded ? null : t.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: 6, fontSize: 12, color: '#9ca3af' }}>
+                        {isExpanded ? '▼' : '▶'}
+                      </button>
+                      <strong>{t.station}</strong> → <strong>{t.target_station}</strong>
+                      <span style={{ marginLeft: 8, color: '#6b7280' }}>{t.donor_count} leads</span>
+                    </div>
+                    <div style={{ color: '#6b7280', fontSize: 11 }}>
+                      Auto-return in {hoursLeft}h {minsLeft}m
+                    </div>
+                    <button className="btn btn-sm btn-outline"
+                      onClick={() => handleReturnEarly(t.id)}
+                      disabled={returningId === t.id}
+                      style={{ color: 'var(--sage, #5B6B4E)' }}>
+                      {returningId === t.id ? 'Returning...' : 'Return Early'}
+                    </button>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ padding: '8px 0 12px 24px', borderBottom: '1px solid var(--line, #e5e7eb)' }}>
+                      <TransferDonorList transferId={t.id} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
-        {showHistory && (
-          <div className="card-pad">
-            {transfers.length === 0 ? (
-              <div className="empty-state"><p>No transfers yet.</p></div>
-            ) : (
-              <>
-                {activeTransfers.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', marginBottom: 8 }}>Active</div>
-                    {activeTransfers.map(t => {
-                      const timeLeft = t.auto_return_at ? new Date(t.auto_return_at) - new Date() : 0;
-                      const hoursLeft = Math.max(0, Math.floor(timeLeft / 3600000));
-                      const minsLeft = Math.max(0, Math.floor((timeLeft % 3600000) / 60000));
-                      const isExpanded = expandedTransfer === t.id;
-                      return (
-                        <div key={t.id}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line, #e5e7eb)', fontSize: 13 }}>
-                            <div style={{ flex: 1 }}>
-                              <button className="btn btn-sm" onClick={() => setExpandedTransfer(isExpanded ? null : t.id)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: 6, fontSize: 12, color: '#9ca3af' }}>
-                                {isExpanded ? '▼' : '▶'}
-                              </button>
-                              <strong>{t.station}</strong> → <strong>{t.target_station}</strong>
-                              <span style={{ marginLeft: 8, color: '#6b7280' }}>{t.donor_count} leads</span>
-                            </div>
-                            <div style={{ color: '#6b7280', fontSize: 11 }}>
-                              Auto-return in {hoursLeft}h {minsLeft}m
-                            </div>
-                            <button className="btn btn-sm btn-outline"
-                              onClick={() => handleReturnEarly(t.id)}
-                              disabled={returningId === t.id}
-                              style={{ color: 'var(--sage, #5B6B4E)' }}>
-                              {returningId === t.id ? 'Returning...' : 'Return Early'}
-                            </button>
-                          </div>
-                          {isExpanded && (
-                            <div style={{ padding: '8px 0 12px 24px', borderBottom: '1px solid var(--line, #e5e7eb)' }}>
-                              <TransferDonorList transferId={t.id} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {historyTransfers.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', marginBottom: 8 }}>History</div>
-                    {historyTransfers.map(t => {
-                      const isExpanded = expandedTransfer === t.id;
-                      return (
-                        <div key={t.id}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line, #e5e7eb)', fontSize: 13, opacity: 0.7 }}>
-                            <div style={{ flex: 1 }}>
-                              <button className="btn btn-sm" onClick={() => setExpandedTransfer(isExpanded ? null : t.id)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: 6, fontSize: 12, color: '#9ca3af' }}>
-                                {isExpanded ? '▼' : '▶'}
-                              </button>
-                              <strong>{t.station}</strong> → <strong>{t.target_station}</strong>
-                              <span style={{ marginLeft: 8, color: '#6b7280' }}>{t.donor_count} leads</span>
-                            </div>
-                            <div style={{ color: '#6b7280', fontSize: 11 }}>
-                              {t.returned_at ? `Returned ${new Date(t.returned_at).toLocaleDateString()}` : 'Returned'}
-                            </div>
-                          </div>
-                          {isExpanded && (
-                            <div style={{ padding: '8px 0 12px 24px', borderBottom: '1px solid var(--line, #e5e7eb)' }}>
-                              <TransferDonorList transferId={t.id} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
+      )}
+
+      {transfers.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head" onClick={() => setShowHistory(!showHistory)} style={{ cursor: 'pointer' }}>
+            <h3>All Transfers</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="count">{transfers.length} total</span>
+              <span style={{ fontSize: 16, color: '#6b7280' }}>{showHistory ? '▲' : '▼'}</span>
+            </div>
           </div>
-        )}
-      </div>
+          {showHistory && (
+            <div className="card-pad">
+              {activeTransfers.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', marginBottom: 8 }}>Active</div>
+                  {activeTransfers.map(t => {
+                    const timeLeft = t.auto_return_at ? new Date(t.auto_return_at) - new Date() : 0;
+                    const hoursLeft = Math.max(0, Math.floor(timeLeft / 3600000));
+                    const minsLeft = Math.max(0, Math.floor((timeLeft % 3600000) / 60000));
+                    const isExpanded = expandedTransfer === t.id;
+                    return (
+                      <div key={t.id}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line, #e5e7eb)', fontSize: 13 }}>
+                          <div style={{ flex: 1 }}>
+                            <button className="btn btn-sm" onClick={() => setExpandedTransfer(isExpanded ? null : t.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: 6, fontSize: 12, color: '#9ca3af' }}>
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
+                            <strong>{t.station}</strong> → <strong>{t.target_station}</strong>
+                            <span style={{ marginLeft: 8, color: '#6b7280' }}>{t.donor_count} leads</span>
+                          </div>
+                          <div style={{ color: '#6b7280', fontSize: 11 }}>
+                            Auto-return in {hoursLeft}h {minsLeft}m
+                          </div>
+                          <button className="btn btn-sm btn-outline"
+                            onClick={() => handleReturnEarly(t.id)}
+                            disabled={returningId === t.id}
+                            style={{ color: 'var(--sage, #5B6B4E)' }}>
+                            {returningId === t.id ? 'Returning...' : 'Return Early'}
+                          </button>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ padding: '8px 0 12px 24px', borderBottom: '1px solid var(--line, #e5e7eb)' }}>
+                            <TransferDonorList transferId={t.id} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {historyTransfers.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', marginBottom: 8 }}>History</div>
+                  {historyTransfers.map(t => {
+                    const isExpanded = expandedTransfer === t.id;
+                    return (
+                      <div key={t.id}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line, #e5e7eb)', fontSize: 13, opacity: 0.7 }}>
+                          <div style={{ flex: 1 }}>
+                            <button className="btn btn-sm" onClick={() => setExpandedTransfer(isExpanded ? null : t.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: 6, fontSize: 12, color: '#9ca3af' }}>
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
+                            <strong>{t.station}</strong> → <strong>{t.target_station}</strong>
+                            <span style={{ marginLeft: 8, color: '#6b7280' }}>{t.donor_count} leads</span>
+                          </div>
+                          <div style={{ color: '#6b7280', fontSize: 11 }}>
+                            {t.returned_at ? `Returned ${new Date(t.returned_at).toLocaleDateString()}` : 'Returned'}
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ padding: '8px 0 12px 24px', borderBottom: '1px solid var(--line, #e5e7eb)' }}>
+                            <TransferDonorList transferId={t.id} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-head">
