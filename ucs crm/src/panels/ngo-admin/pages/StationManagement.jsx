@@ -329,6 +329,9 @@ export default function StationManagement() {
                   <th>NGOs</th>
                   <th>FRO Worker</th>
                   <th>Donors</th>
+                  <th>Salary</th>
+                  <th>Target</th>
+                  <th>Source</th>
                   <th></th>
                 </tr>
               </thead>
@@ -366,6 +369,37 @@ export default function StationManagement() {
                       <span className="pill pill-blue">{s.donor_count}</span>
                     </td>
                     <td>
+                      {(() => {
+                        const w = froWorkers.find(fw => fw.id === s.fro_worker_id);
+                        return w ? <span>₹{Number(w.salary || 0).toLocaleString('en-IN')}</span> : <span style={{ color: '#9ca3af' }}>—</span>;
+                      })()}
+                    </td>
+                    <td>
+                      {(() => {
+                        const w = froWorkers.find(fw => fw.id === s.fro_worker_id);
+                        if (!w) return <span style={{ color: '#9ca3af' }}>—</span>;
+                        const t = targets.find(tg => tg.fro_worker_id === w.id);
+                        return <strong>₹{Number(t?.target || 0).toLocaleString('en-IN')}</strong>;
+                      })()}
+                    </td>
+                    <td>
+                      {(() => {
+                        const w = froWorkers.find(fw => fw.id === s.fro_worker_id);
+                        if (!w) return <span style={{ color: '#9ca3af' }}>—</span>;
+                        const t = targets.find(tg => tg.fro_worker_id === w.id);
+                        if (!t) return <span style={{ color: '#9ca3af' }}>—</span>;
+                        return (
+                          <>
+                            {t?.target_source === 'auto_month1' && <span className="pill pill-yellow">Auto M1</span>}
+                            {t?.target_source === 'auto_month2' && <span className="pill pill-yellow">Auto M2</span>}
+                            {t?.target_source === 'auto_month3' && <span className="pill pill-yellow">Auto M3</span>}
+                            {t?.target_source === 'manual' && <span className="pill pill-green">Manual</span>}
+                            {t?.target_source === 'not_set' && <span className="pill pill-gray">Not Set</span>}
+                          </>
+                        );
+                      })()}
+                    </td>
+                    <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {(() => {
                           const at = activeTransfers.find(t => t.station === s.station);
@@ -377,6 +411,19 @@ export default function StationManagement() {
                               {returningId === at.id ? 'Returning...' : 'Return'}
                             </button>
                           ) : null;
+                        })()}
+                        {(() => {
+                          const w = froWorkers.find(fw => fw.id === s.fro_worker_id);
+                          if (!w) return null;
+                          const t = targets.find(tg => tg.fro_worker_id === w.id);
+                          if (!t || t?.months_employed >= 3) {
+                            return (
+                              <button className="btn btn-sm btn-outline" onClick={() => { setEditTarget(w); setTargetAmount(String(t?.target || '')); }}>
+                                {t?.target_source === 'manual' ? 'Edit' : 'Set'}
+                              </button>
+                            );
+                          }
+                          return <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>Auto</span>;
                         })()}
                         <button className="btn btn-sm btn-outline" onClick={() => {
                           const fro = froWorkers.find(w => w.id === s.fro_worker_id);
@@ -399,96 +446,6 @@ export default function StationManagement() {
               </tbody>
             </table>
           )}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head">
-          <h3>FRO Workers</h3>
-          <span className="count">{froWorkers.length} workers</span>
-        </div>
-        <div className="card-pad">
-          <div style={{ overflowX: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  {allNgos.map(ngo => (
-                    <th key={ngo.id} style={{ textAlign: 'center', color: NGO_NAME_COLORS[ngo.name.toLowerCase()] || '#667085', fontWeight: 600 }}>
-                      {ngo.name}
-                    </th>
-                  ))}
-                  <th>Salary</th>
-                  <th>Target</th>
-                  <th>Source</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {froWorkers.map(w => {
-                  const t = targets.find(tg => tg.fro_worker_id === w.id);
-                  const current = w.allocated_ngo_ids || [];
-                  return (
-                    <tr key={w.id}>
-                      <td style={{ fontWeight: 500 }}>{w.name}</td>
-                      <td>{w.phone || '—'}</td>
-                      {allNgos.map(ngo => {
-                        const checked = current.includes(ngo.id);
-                        const color = NGO_NAME_COLORS[ngo.name.toLowerCase()] || '#667085';
-                        return (
-                          <td key={ngo.id} style={{ textAlign: 'center' }}>
-                            <span onClick={() => {
-                              const next = checked ? current.filter(id => id !== ngo.id) : [...current, ngo.id];
-                              apiPut(`/workers/${w.id}/allocations`, {
-                                allocations: next.map(id => ({ ngo_id: id, salary_portion: 0 })),
-                              }).then(() => {
-                                setFroWorkers(prev => prev.map(fw =>
-                                  fw.id === w.id ? { ...fw, allocated_ngo_ids: next } : fw
-                                ));
-                              }).catch(err => alert(err.message));
-                            }} style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              padding: '1px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
-                              cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-                              transition: 'all 0.12s', lineHeight: '22px', minWidth: 44,
-                              border: checked ? 'none' : '1px solid #e0e0e0',
-                              background: checked ? color : '#f5f5f5',
-                              color: checked ? '#fff' : '#999',
-                            }}>
-                              {ngo.name}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td>₹{Number(w.salary || 0).toLocaleString('en-IN')}</td>
-                      <td><strong>₹{Number(t?.target || 0).toLocaleString('en-IN')}</strong></td>
-                      <td>
-                        {t?.target_source === 'auto_month1' && <span className="pill pill-yellow">Auto M1</span>}
-                        {t?.target_source === 'auto_month2' && <span className="pill pill-yellow">Auto M2</span>}
-                        {t?.target_source === 'auto_month3' && <span className="pill pill-yellow">Auto M3</span>}
-                        {t?.target_source === 'manual' && <span className="pill pill-green">Manual</span>}
-                        {t?.target_source === 'not_set' && <span className="pill pill-gray">Not Set</span>}
-                      </td>
-                      <td>
-                        {t?.months_employed >= 3 && (
-                          <button className="btn btn-sm btn-outline" onClick={() => { setEditTarget(w); setTargetAmount(String(t?.target || '')); }}>
-                            {t?.target_source === 'manual' ? 'Edit' : 'Set'}
-                          </button>
-                        )}
-                        {(!t || t?.months_employed < 3) && (
-                          <span style={{ fontSize: 11, color: '#6b7280' }}>{t ? `Auto (${t.months_employed + 1}m)` : 'Auto'}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {froWorkers.length === 0 && (
-                  <tr><td colSpan={5 + allNgos.length} style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>No FRO workers found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
         </div>
       </div>
 
