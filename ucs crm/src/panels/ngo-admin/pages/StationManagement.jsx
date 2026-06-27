@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete } from '../api/auth';
 
+const NGO_NAME_COLORS = {
+  bsct: '#2563eb',
+  aflf: '#16a34a',
+  mann: '#ec4899',
+};
+
 function TransferDataModal({ station, sourceName, sourceCount, stations, onClose, onTransferred }) {
   const [targetStation, setTargetStation] = useState('');
   const [count, setCount] = useState(sourceCount);
@@ -116,6 +122,7 @@ export default function StationManagement() {
   const [stations, setStations] = useState([]);
   const [allNgos, setAllNgos] = useState([]);
   const [froWorkers, setFroWorkers] = useState([]);
+  const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newStation, setNewStation] = useState('');
   const [newStationNgos, setNewStationNgos] = useState([]);
@@ -126,6 +133,8 @@ export default function StationManagement() {
   const [transfers, setTransfers] = useState([]);
   const [returningId, setReturningId] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [targetAmount, setTargetAmount] = useState('');
 
   useEffect(() => {
     if (!msg) return;
@@ -157,7 +166,16 @@ export default function StationManagement() {
     apiGet('/ngo-admin/transfers').then(t => {
       setTransfers(Array.isArray(t) ? t : []);
     }).catch(err => console.error('fetchData transfers error:', err));
+    apiGet('/ngo-admin/targets').then(t => {
+      if (Array.isArray(t)) setTargets(t);
+    }).catch(() => {});
     if (successMsg) setMsg(successMsg);
+  };
+
+  const loadTargets = () => {
+    apiGet('/ngo-admin/targets').then(t => {
+      if (Array.isArray(t)) setTargets(t);
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -166,11 +184,13 @@ export default function StationManagement() {
       apiGet('/ngo-admin/stations'),
       apiGet('/ngo-admin/ngos'),
       apiGet('/ngo-admin/fro-workers'),
-    ]).then(([s, n, f]) => {
+      apiGet('/ngo-admin/targets'),
+    ]).then(([s, n, f, t]) => {
       const list = Array.isArray(s) ? s : [];
       setStations(list);
       setAllNgos(Array.isArray(n) ? n : []);
       setFroWorkers(Array.isArray(f) ? f : []);
+      if (Array.isArray(t)) setTargets(t);
       setNewStation(computeNextName(list));
     }).catch(err => console.error('Initial load error:', err)).finally(() => setLoading(false));
     apiGet('/ngo-admin/transfers').then(t => {
@@ -381,6 +401,130 @@ export default function StationManagement() {
           )}
         </div>
       </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3>FRO Workers</h3>
+          <span className="count">{froWorkers.length} workers</span>
+        </div>
+        <div className="card-pad">
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  {allNgos.map(ngo => (
+                    <th key={ngo.id} style={{ textAlign: 'center', color: NGO_NAME_COLORS[ngo.name.toLowerCase()] || '#667085', fontWeight: 600 }}>
+                      {ngo.name}
+                    </th>
+                  ))}
+                  <th>Salary</th>
+                  <th>Target</th>
+                  <th>Source</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {froWorkers.map(w => {
+                  const t = targets.find(tg => tg.fro_worker_id === w.id);
+                  const current = w.allocated_ngo_ids || [];
+                  return (
+                    <tr key={w.id}>
+                      <td style={{ fontWeight: 500 }}>{w.name}</td>
+                      <td>{w.phone || '—'}</td>
+                      {allNgos.map(ngo => {
+                        const checked = current.includes(ngo.id);
+                        const color = NGO_NAME_COLORS[ngo.name.toLowerCase()] || '#667085';
+                        return (
+                          <td key={ngo.id} style={{ textAlign: 'center' }}>
+                            <span onClick={() => {
+                              const next = checked ? current.filter(id => id !== ngo.id) : [...current, ngo.id];
+                              apiPut(`/workers/${w.id}/allocations`, {
+                                allocations: next.map(id => ({ ngo_id: id, salary_portion: 0 })),
+                              }).then(() => {
+                                setFroWorkers(prev => prev.map(fw =>
+                                  fw.id === w.id ? { ...fw, allocated_ngo_ids: next } : fw
+                                ));
+                              }).catch(err => alert(err.message));
+                            }} style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              padding: '1px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
+                              cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                              transition: 'all 0.12s', lineHeight: '22px', minWidth: 44,
+                              border: checked ? 'none' : '1px solid #e0e0e0',
+                              background: checked ? color : '#f5f5f5',
+                              color: checked ? '#fff' : '#999',
+                            }}>
+                              {ngo.name}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td>₹{Number(w.salary || 0).toLocaleString('en-IN')}</td>
+                      <td><strong>₹{Number(t?.target || 0).toLocaleString('en-IN')}</strong></td>
+                      <td>
+                        {t?.target_source === 'auto_month1' && <span className="pill pill-yellow">Auto M1</span>}
+                        {t?.target_source === 'auto_month2' && <span className="pill pill-yellow">Auto M2</span>}
+                        {t?.target_source === 'auto_month3' && <span className="pill pill-yellow">Auto M3</span>}
+                        {t?.target_source === 'manual' && <span className="pill pill-green">Manual</span>}
+                        {t?.target_source === 'not_set' && <span className="pill pill-gray">Not Set</span>}
+                      </td>
+                      <td>
+                        {t?.months_employed >= 3 && (
+                          <button className="btn btn-sm btn-outline" onClick={() => { setEditTarget(w); setTargetAmount(String(t?.target || '')); }}>
+                            {t?.target_source === 'manual' ? 'Edit' : 'Set'}
+                          </button>
+                        )}
+                        {(!t || t?.months_employed < 3) && (
+                          <span style={{ fontSize: 11, color: '#6b7280' }}>{t ? `Auto (${t.months_employed + 1}m)` : 'Auto'}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {froWorkers.length === 0 && (
+                  <tr><td colSpan={5 + allNgos.length} style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>No FRO workers found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {editTarget && (
+        <div className="modal-overlay" onClick={() => setEditTarget(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3>Set Target — {editTarget.name}</h3>
+              <button className="btn btn-sm btn-outline" onClick={() => setEditTarget(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Monthly Target Amount (₹)</label>
+                <input type="number" value={targetAmount} onChange={e => setTargetAmount(e.target.value)} min="0" />
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={() => setEditTarget(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={async () => {
+                  if (!targetAmount) return;
+                  try {
+                    const now = new Date();
+                    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    await apiPost('/ngo-admin/targets', {
+                      fro_worker_id: editTarget.id,
+                      month,
+                      target_amount: parseFloat(targetAmount),
+                    });
+                    setEditTarget(null);
+                    loadTargets();
+                  } catch (err) { alert(err.message); }
+                }} disabled={!targetAmount}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editNgoStation && (
         <NgoSelectModal
