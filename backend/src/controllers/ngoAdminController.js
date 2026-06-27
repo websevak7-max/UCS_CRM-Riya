@@ -502,19 +502,26 @@ export const getStations = async (req, res) => {
 
     // Get donor counts per station from fro_assignments (not donor_profiles.station,
     // since donor_profiles are mobile-unique and station gets overwritten per-NGO)
+    // Exclude reassigned so transferred leads don't inflate the count
     const { data: faData, error: faErr } = await supabase
       .from('fro_assignments')
-      .select('station, ngo_id')
+      .select('station, ngo_id, fro_worker_id')
       .in('ngo_id', ngoIds)
-      .not('station', 'is', null);
+      .not('station', 'is', null)
+      .not('status', 'eq', 'reassigned');
 
     if (faErr) throw faErr;
 
-    // Build total donor count per station (across all NGOs)
+    // Build total donor count per station (across all NGOs) and per-FRO count
     const totalDonorCount = {};
+    const froDonorCount = {};
     for (const d of faData || []) {
       const s = d.station.trim();
       totalDonorCount[s] = (totalDonorCount[s] || 0) + 1;
+      if (d.fro_worker_id) {
+        const key = `${s}_${d.fro_worker_id}`;
+        froDonorCount[key] = (froDonorCount[key] || 0) + 1;
+      }
     }
 
     const ngoIdToName = {};
@@ -566,6 +573,7 @@ export const getStations = async (req, res) => {
     const result = Object.values(stationMap).map(s => ({
       ...s,
       donor_count: totalDonorCount[s.station] || 0,
+      fro_donor_count: s.fro_worker_id ? (froDonorCount[`${s.station}_${s.fro_worker_id}`] || 0) : 0,
     }));
 
     result.sort((a, b) => {
