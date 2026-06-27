@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useUcs } from '../../store'
 import { themes, applyTheme } from '../hr/theme'
+import { getScheduled, getCallbacks } from './api/donors'
+import DispositionModal from './components/DispositionModal'
 import Dashboard from './pages/Dashboard'
 import MyDonors from './pages/MyDonors'
 import Donors from './pages/Donors'
@@ -70,6 +72,71 @@ export default function FROPanel() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showMenu])
 
+  // Global schedule/callback reminder popup
+  const [modalDonor, setModalDonor] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [refetch, setRefetch] = useState(0);
+  const [pollTick, setPollTick] = useState(0);
+  const poppedIds = useRef(new Set());
+  const autoPoppedId = useRef(null);
+
+  const loadReminders = () => {
+    Promise.all([getScheduled(), getCallbacks()]).then(([scheduled, callbacks]) => {
+      const items = [];
+      (scheduled || []).forEach(d => {
+        items.push({
+          id: d.id,
+          ngo_id: d.ngo_id,
+          donor_name: d.donor_name,
+          donor_mobile: d.donor_mobile,
+          scheduled_at: d.scheduled_at,
+          assignment_id: d.assignment_id,
+          type: 'scheduled',
+        });
+      });
+      (callbacks || []).forEach(d => {
+        if (!items.find(i => i.id === d.id && i.ngo_id === d.ngo_id)) {
+          items.push({
+            id: d.id,
+            ngo_id: d.ngo_id,
+            donor_name: d.donor_name,
+            donor_mobile: d.donor_mobile,
+            scheduled_at: null,
+            assignment_id: d.assignment_id,
+            type: 'callback',
+          });
+        }
+      });
+      setRows(items);
+    }).catch(() => {});
+  };
+
+  useEffect(() => { loadReminders(); }, [refetch]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setPollTick(t => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (modalDonor) return;
+    const due = rows
+      .filter(r => r.type === 'scheduled' && r.scheduled_at && new Date(r.scheduled_at) <= new Date() && !poppedIds.current.has(r.id))
+      .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+    if (due.length > 0) {
+      const next = due[0];
+      poppedIds.current.add(next.id);
+      autoPoppedId.current = next.id;
+      setModalDonor(next);
+    }
+  }, [pollTick, rows, modalDonor]);
+
+  const handlePopDone = () => {
+    autoPoppedId.current = null;
+    setModalDonor(null);
+    setRefetch(n => n + 1);
+  };
+
   const userName = user?.name || 'User'
   const initials = userName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
@@ -128,6 +195,21 @@ export default function FROPanel() {
           )}
         </div>
       </div>
+      {modalDonor && (
+        <DispositionModal
+          donorId={modalDonor.id}
+          ngoId={modalDonor.ngo_id}
+          donorName={modalDonor.donor_name}
+          scheduledAt={modalDonor.scheduled_at}
+          onClose={() => {
+            if (autoPoppedId.current !== null) poppedIds.current.delete(autoPoppedId.current);
+            autoPoppedId.current = null;
+            setModalDonor(null);
+            setPollTick(t => t + 1);
+          }}
+          onDone={handlePopDone}
+        />
+      )}
     </div>
   )
 }

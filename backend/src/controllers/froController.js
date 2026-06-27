@@ -206,10 +206,14 @@ export const getDashboard = async (req, res) => {
   }
 };
 
+const NOT_CONNECTED_STATUSES = ['busy', 'ringing', 'unreachable', 'switched_off', 'wrong_number', 'invalid_number', 'rejected'];
+const CONNECTED_STATUSES = ['contacted', 'donation_collected', 'lead_done', 'follow_up', 'scheduled', 'visit_donate', 'promise_to_pay', 'payment_pending', 'already_donated', 'language_barrier', 'transferred_senior', 'query_complaint', 'receipt_request'];
+
 export const getMyDonors = async (req, res) => {
   try {
     const workerId = req.user.id;
     const statusFilter = req.query.status;
+    const statusGroup = req.query.status_group;
 
     // Query fro_assignments by this FRO's station names (not fro_worker_id,
     // since stations may not have an FRO assigned)
@@ -222,7 +226,11 @@ export const getMyDonors = async (req, res) => {
       .in('station', stationNames)
       .not('status', 'eq', 'reassigned');
 
-    if (statusFilter) {
+    if (statusGroup === 'not_connected') {
+      query = query.in('status', NOT_CONNECTED_STATUSES);
+    } else if (statusGroup === 'connected') {
+      query = query.in('status', CONNECTED_STATUSES);
+    } else if (statusFilter) {
       query = query.eq('status', statusFilter);
     } else {
       query = query.eq('status', 'pending');

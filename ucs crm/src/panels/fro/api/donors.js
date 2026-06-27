@@ -1,8 +1,11 @@
 import { api } from './auth'
 
-export async function getMyDonors(status) {
-  const params = status ? `?status=${status}` : ''
-  return api(`/fro/donors${params}`, { _prefix: 'ucs' })
+export async function getMyDonors(status, statusGroup) {
+  const params = new URLSearchParams();
+  if (statusGroup) params.set('status_group', statusGroup);
+  else if (status) params.set('status', status);
+  const qs = params.toString();
+  return api(`/fro/donors${qs ? '?' + qs : ''}`, { _prefix: 'ucs' })
 }
 
 export async function getDonorDetail(donorId, ngoId) {
