@@ -1297,22 +1297,14 @@ export default function EmployeeDetail({ worker, onBack, onOffboard }) {
                           )}
                           <span style={{ borderTop:'1px solid var(--line)', paddingTop:4, fontWeight:600 }}>Paid days</span>
                           <span style={{ borderTop:'1px solid var(--line)', paddingTop:4, textAlign:'right', fontWeight:600 }}>{paidDays}</span>
-                          {loanDeductionTotal > 0 && (
-                            <><span style={{ color:'#e67e22' }}>Loan/Advance deduction</span><span style={{ textAlign:'right', color:'#e67e22' }}>−₹{loanDeductionTotal.toLocaleString('en-IN')}</span></>
-                          )}
-                        </div>
-                        <div style={{ marginTop:10, textAlign:'center' }}>
-                            <span style={{ color:'var(--ink-soft)', fontSize:12 }}>₹{perDay.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {paidDays} day{paidDays !== 1 ? 's' : ''}{lateDeductionDays > 0 ? ' − ' + lateDeductionDays + ' late' : ''}{joiningDeduction > 0 ? ' − ' + joiningDeduction + ' join' : ''} = </span>
-                          <strong style={{ fontSize:20, color:'var(--sage)' }}>₹{Math.round(totalDue).toLocaleString('en-IN')}</strong>
-                          {loanDeductionTotal > 0 && (
-                            <span style={{ color:'var(--ink-soft)', fontSize:12 }}> − <span style={{ color:'#e67e22' }}>₹{loanDeductionTotal.toLocaleString('en-IN')}</span> loan = </span>
-                          )}
-                          <strong style={{ fontSize:20, color:'var(--sage)' }}>₹{(Math.round(totalDue) - loanDeductionTotal).toLocaleString('en-IN')}</strong>
-                        </div>
-                      </div>
-                      </div>
-                    </>
-                  )}
+{loanDeductionTotal > 0 && (
+                             <><span style={{ color:'#e67e22' }}>Loan/Advance deduction</span><span style={{ textAlign:'right', color:'#e67e22' }}>−₹{loanDeductionTotal.toLocaleString('en-IN')}</span></>
+                           )}
+                         </div>
+                       </div>
+                       </div>
+                     </>
+                   )}
                 </div>
               </div>
 
