@@ -254,6 +254,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Future<void> _punchIn() async {
     if (!await _requestLocationPermission()) return;
+
+    // Check connectivity first
+    final online = await ApiService.checkConnectivity();
+    if (!online && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Please check your network.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (_) => const ScannerPage()),
@@ -286,9 +300,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     } catch (e) {
       if (mounted) {
+        final msg = _friendlyNetworkError(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception:', '').trim()),
+            content: Text(msg),
             backgroundColor: Colors.red.shade700,
           ),
         );
@@ -298,6 +313,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Future<void> _punchOut() async {
     if (!await _requestLocationPermission()) return;
+
+    // Check connectivity first
+    final online = await ApiService.checkConnectivity();
+    if (!online && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Please check your network.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (_) => const ScannerPage()),
@@ -322,14 +351,29 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     } catch (e) {
       if (mounted) {
+        final msg = _friendlyNetworkError(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception:', '').trim()),
+            content: Text(msg),
             backgroundColor: Colors.red.shade700,
           ),
         );
       }
     }
+  }
+
+  String _friendlyNetworkError(Object e) {
+    final s = e.toString();
+    if (s.contains('SocketException') || s.contains('Connection refused') || s.contains('No route to host')) {
+      return 'Network unreachable. Please check your internet connection.';
+    }
+    if (s.contains('TimeoutException') || s.contains('timed out')) {
+      return 'Request timed out. Please try again.';
+    }
+    if (s.contains('FormatException') || s.contains('json')) {
+      return 'Server error. Please try again later.';
+    }
+    return s.replaceFirst('Exception: ', '').trim();
   }
 
   String _fmtTime(dynamic ts) {
