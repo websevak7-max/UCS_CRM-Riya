@@ -187,7 +187,7 @@ export default function EmployeeDetail({ worker, onBack, onOffboard }) {
     if (onOffboard) onOffboard(worker);
   };
 
-  const setField = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+  const setField = (key) => (e) => setForm(f => ({ ...f, [key]: e?.target?.value ?? e }));
   const setBool = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.checked }));
 
   if (loading) return <SkeletonDetail onBack={onBack} />;

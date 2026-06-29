@@ -375,11 +375,11 @@ export default function Attendance() {
                 <div className="filters">
                   <div className="filter-group">
                     <label>Date From</label>
-                    <DatePicker value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="From" />
-                  </div>
-                  <div className="filter-group">
-                    <label>Date To</label>
-                    <DatePicker value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="To" />
+<DatePicker value={dateFrom} onChange={v => setDateFrom(v)} placeholder="From" />
+                   </div>
+                   <div className="filter-group">
+                     <label>Date To</label>
+                     <DatePicker value={dateTo} onChange={v => setDateTo(v)} placeholder="To" />
                   </div>
                   <div className="filter-group">
                     <label>Department</label>
