@@ -223,6 +223,72 @@ export const getDashboard = async (req, res) => {
     const reactivatedToday = [...todayDonorSet].filter(id => !fyBeforeTodayDonors.has(id)).length;
     const reactivatedMonthly = [...monthDonorSet].filter(id => !fyBeforeMonthDonors.has(id)).length;
 
+    // FRO-specific reactivations: donors THIS worker reactivated (donated today/month but no prior donation in FY)
+    let froReactivatedToday = 0, froReactivatedMonthly = 0;
+    if (stationNames.length > 0) {
+      // Get donations by this FRO worker today
+      const { data: froTodayDonors } = await supabase
+        .from('fro_donor_logs')
+        .select('donor_id, fro_assignments!inner(station, fro_worker_id)')
+        .in('fro_assignments.station', stationNames)
+        .eq('fro_assignments.fro_worker_id', workerId)
+        .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+        .gte('created_at', todayStart.toISOString())
+        .lte('created_at', todayEnd.toISOString());
+
+      const { data: froMonthDonors } = await supabase
+        .from('fro_donor_logs')
+        .select('donor_id, fro_assignments!inner(station, fro_worker_id)')
+        .in('fro_assignments.station', stationNames)
+        .eq('fro_assignments.fro_worker_id', workerId)
+        .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+        .gte('created_at', monthStart)
+        .lte('created_at', monthEnd);
+
+      const { data: froFyDonors } = await supabase
+        .from('fro_donor_logs')
+        .select('donor_id, created_at, fro_assignments!inner(station, fro_worker_id)')
+        .in('fro_assignments.station', stationNames)
+        .eq('fro_assignments.fro_worker_id', workerId)
+        .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+        .gte('created_at', fyStart.toISOString());
+
+      const todayStr = todayStart.toISOString();
+      const fyBeforeTodayDonorsSet = new Set();
+      const fyBeforeMonthDonorsSet = new Set();
+      for (const log of froFyDonors || []) {
+        if (log.created_at < todayStr) fyBeforeTodayDonorsSet.add(log.donor_id);
+        if (log.created_at < monthStart) fyBeforeMonthDonorsSet.add(log.donor_id);
+      }
+
+      const froTodayDonorSet = new Set((froTodayDonors || []).map(l => l.donor_id).filter(Boolean));
+      const froMonthDonorSet = new Set((froMonthDonors || []).map(l => l.donor_id).filter(Boolean));
+      froReactivatedToday = [...froTodayDonorSet].filter(id => !fyBeforeTodayDonorsSet.has(id)).length;
+      froReactivatedMonthly = [...froMonthDonorSet].filter(id => !fyBeforeMonthDonorsSet.has(id)).length;
+    }
+
+    // Active donors: those who donated within the last 1 year
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const donorsWithRecentDonations = stationNames.length > 0
+      ? (await supabase
+          .from('fro_donor_logs')
+          .select('donor_id, fro_assignments!inner(station)')
+          .in('fro_assignments.station', stationNames)
+          .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition,accounts_status.eq.verified)')
+          .gte('created_at', oneYearAgo.toISOString())).data || []
+      : [];
+
+    const activeDonorIds = new Set(donorsWithRecentDonations.map(d => d.donor_id).filter(Boolean));
+    let activeDonors = 0, inactiveDonors = 0;
+    for (const a of assignmentsRes.data || []) {
+      if (activeDonorIds.has(a.donor_id)) {
+        activeDonors++;
+      } else {
+        inactiveDonors++;
+      }
+    }
+
     return res.json({
       stats,
       target,
@@ -237,9 +303,13 @@ export const getDashboard = async (req, res) => {
       new_donors_monthly: newDonorsMonthly,
       reactivated_today: reactivatedToday,
       reactivated_monthly: reactivatedMonthly,
+      fro_reactivated_today: froReactivatedToday,
+      fro_reactivated_monthly: froReactivatedMonthly,
       data_used: dataUsed,
       data_unused: dataUnused,
       total_donations: totalDonations,
+      active_donors: activeDonors,
+      inactive_donors: inactiveDonors,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

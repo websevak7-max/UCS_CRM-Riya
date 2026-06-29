@@ -359,12 +359,112 @@ export const getDashboard = async (req, res) => {
       monthCollection += await getTotalCollectedByWorker(w.id, monthStart, monthEnd);
     }
 
+    // Data used / unused (same logic as FRO dashboard)
+    const connectedStatuses = new Set([
+      'contacted', 'donation_collected', 'lead_done', 'follow_up', 'scheduled',
+      'visit_donate', 'promise_to_pay', 'payment_pending', 'already_donated',
+      'language_barrier', 'transferred_senior', 'query_complaint', 'receipt_request',
+    ]);
+    let dataUsed = 0, dataUnused = 0;
+    for (const a of allAssignments) {
+      if (a.status === 'reassigned') continue;
+      if (connectedStatuses.has(a.status)) dataUsed++;
+      else dataUnused++;
+    }
+
+    // Active donors: those who donated within the last 1 year
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const donorsWithRecentDonations = ngoIds.length > 0
+      ? (await supabase
+          .from('fro_donor_logs')
+          .select('donor_id, fro_assignments!inner(ngo_id)')
+          .in('fro_assignments.ngo_id', ngoIds)
+          .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition,accounts_status.eq.verified)')
+          .gte('created_at', oneYearAgo.toISOString())).data || []
+      : [];
+
+    const activeDonorIds = new Set(donorsWithRecentDonations.map(d => d.donor_id).filter(Boolean));
+    let activeDonors = 0, inactiveDonors = 0;
+    for (const a of allAssignments) {
+      if (a.status === 'reassigned') continue;
+      if (activeDonorIds.has(a.donor_id)) {
+        activeDonors++;
+      } else {
+        inactiveDonors++;
+      }
+    }
+
+    // Reactivation metrics (same logic as FRO dashboard, scoped by NGO)
+    const fyYear = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+    const fyStart = new Date(fyYear, 3, 1);
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+    const [fyDonorsRes, todayDonorsRes, monthDonorsRes] = ngoIds.length > 0
+      ? await Promise.all([
+          supabase.from('fro_donor_logs').select('donor_id, created_at, fro_assignments!inner(ngo_id)')
+            .in('fro_assignments.ngo_id', ngoIds)
+            .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+            .gte('created_at', fyStart.toISOString()),
+          supabase.from('fro_donor_logs').select('donor_id, fro_assignments!inner(ngo_id)')
+            .in('fro_assignments.ngo_id', ngoIds)
+            .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+            .gte('created_at', todayStart.toISOString())
+            .lte('created_at', todayEnd.toISOString()),
+          supabase.from('fro_donor_logs').select('donor_id, fro_assignments!inner(ngo_id)')
+            .in('fro_assignments.ngo_id', ngoIds)
+            .or('action.eq.donation,and(disposition_detail.eq.lead_done,action.eq.disposition)')
+            .gte('created_at', monthStart)
+            .lte('created_at', monthEnd),
+        ])
+      : [{ data: [] }, { data: [] }, { data: [] }];
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const fyBeforeTodayDonors = new Set();
+    const fyBeforeMonthDonors = new Set();
+    for (const log of fyDonorsRes.data || []) {
+      if (log.created_at < todayStr) fyBeforeTodayDonors.add(log.donor_id);
+      if (log.created_at < monthStart) fyBeforeMonthDonors.add(log.donor_id);
+    }
+
+    const todayDonorSet = new Set((todayDonorsRes.data || []).map(l => l.donor_id).filter(Boolean));
+    const monthDonorSet = new Set((monthDonorsRes.data || []).map(l => l.donor_id).filter(Boolean));
+
+    const reactivatedToday = [...todayDonorSet].filter(id => !fyBeforeTodayDonors.has(id)).length;
+    const reactivatedMonthly = [...monthDonorSet].filter(id => !fyBeforeMonthDonors.has(id)).length;
+
+    // Attendance metrics
+    const activeFroIds = froWorkers.filter(w => w.is_active !== false).map(w => w.id);
+    let workersPresent = 0, workersAbsent = 0;
+    if (activeFroIds.length > 0) {
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('status')
+        .eq('date', todayStr)
+        .in('worker_id', activeFroIds);
+      workersPresent = (attendanceData || []).filter(a => a.status === 'present' || a.status === 'late').length;
+      workersAbsent = (attendanceData || []).filter(a => a.status === 'absent').length;
+    }
+    const activeFroCount = froWorkers.filter(w => w.is_active !== false).length;
+    const attendancePct = activeFroCount > 0 ? Math.round((workersPresent / activeFroCount) * 1000) / 10 : 0;
+
     return res.json({
       total_donors: totalDonors.length,
       assigned_donors: assignedCount,
       collected_donors: collectedDonations.length,
-      active_fros: froWorkers.filter(w => w.is_active !== false).length,
+      active_fros: activeFroCount,
       month_collection: monthCollection,
+      total_workers: activeFroCount,
+      workers_present: workersPresent,
+      workers_absent: workersAbsent,
+      attendance_pct: attendancePct,
+      data_used: dataUsed,
+      data_unused: dataUnused,
+      active_donors: activeDonors,
+      inactive_donors: inactiveDonors,
+      reactivated_today: reactivatedToday,
+      reactivated_monthly: reactivatedMonthly,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

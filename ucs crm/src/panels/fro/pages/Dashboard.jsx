@@ -156,7 +156,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Metric cards row 2: Usage & Totals */}
+{/* Metric cards row 2: Usage & Totals */}
       <div className="bento-col-3">
         <div className="bento-card">
           <div className="m3-stat">
@@ -170,6 +170,24 @@ export default function Dashboard() {
           <div className="m3-stat">
             <div className="m3-stat-num" style={{color:'#f87171'}}>{ds.data_unused ?? (stats.pending ?? 0) + (stats.not_reachable ?? 0) + (stats.not_interested ?? 0)}</div>
             <div className="m3-stat-lbl">Data Unused</div>
+          </div>
+        </div>
+      </div>
+      <div className="bento-col-3">
+        <div className="bento-card">
+          <div className="m3-stat">
+            <div className="m3-stat-num" style={{color:'#8b5cf6'}}>{ds.active_donors ?? 0}</div>
+            <div className="m3-stat-lbl">Active Donors</div>
+            <div style={{fontSize:9, color:'var(--md-outline)'}}>Donated in last 1 year</div>
+          </div>
+        </div>
+      </div>
+      <div className="bento-col-3">
+        <div className="bento-card">
+          <div className="m3-stat">
+            <div className="m3-stat-num" style={{color:'#f97316'}}>{ds.inactive_donors ?? 0}</div>
+            <div className="m3-stat-lbl">Inactive Donors</div>
+            <div style={{fontSize:9, color:'var(--md-outline)'}}>No donation in last 1 year</div>
           </div>
         </div>
       </div>
