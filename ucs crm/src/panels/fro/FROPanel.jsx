@@ -122,7 +122,8 @@ export default function FROPanel() {
     setRefetch(n => n + 1);
   };
 
-  const dueItems = rows.filter(r => r.scheduled_at && new Date(r.scheduled_at) <= new Date());
+  const dedupedRows = rows.filter((r, i, a) => i === a.findIndex(x => x.id === r.id));
+  const dueItems = dedupedRows.filter(r => r.scheduled_at && new Date(r.scheduled_at) <= new Date());
   const dueCount = dueItems.length;
 
   const userName = user?.name || 'User'

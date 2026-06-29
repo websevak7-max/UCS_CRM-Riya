@@ -95,8 +95,9 @@ export default function Scheduled() {
 
   if (loading) return <SkeletonTable rows={8} />;
 
-  const scheduledRows = rows.filter(r => r.type === 'scheduled');
-  const callbackRows = rows.filter(r => r.type === 'callback');
+  const dedupedRows = rows.filter((r, i, a) => i === a.findIndex(x => x.id === r.id));
+  const scheduledRows = dedupedRows.filter(r => r.type === 'scheduled');
+  const callbackRows = dedupedRows.filter(r => r.type === 'callback');
   const list = tab === 'scheduled' ? scheduledRows : callbackRows;
 
   return (
@@ -107,7 +108,7 @@ export default function Scheduled() {
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:'10px 20px', border:'none', borderBottom: tab === t.id ? '2px solid var(--sage)' : '2px solid transparent', background:'transparent', fontSize:12, fontWeight:700, fontFamily:'inherit', cursor:'pointer', color: tab === t.id ? 'var(--sage)' : 'var(--ink-soft)' }}>
             {t.label}
-            <span style={{ marginLeft:6, fontSize:10, color:'var(--ink-soft)' }}>({(tab==='scheduled'?scheduledRows:callbackRows).length})</span>
+         <span style={{ marginLeft:6, fontSize:10, color:'var(--ink-soft)' }}>({(t.id==='scheduled'?scheduledRows:callbackRows).length})</span>
           </button>
         ))}
       </div>
